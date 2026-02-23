@@ -811,10 +811,19 @@
     <input 
       type="password" 
       id="api-key-input"
-      placeholder="sk-ant-api03-..."
+      placeholder="sk-ant-api03-... (Anthropic)"
       onkeydown="if(event.key==='Enter') saveApiKey()"
       style="width:100%; background:#0a0a0f; border:1px solid #2a2a3d; border-radius:4px; padding:14px 16px; font-family:'DM Mono',monospace; font-size:0.85rem; color:#e8e8f0; outline:none; margin-bottom:12px;"
     />
+    <input
+      type="password"
+      id="fmp-key-input"
+      placeholder="FMP API key (optional — from financialmodelingprep.com)"
+      style="width:100%; background:#0a0a0f; border:1px solid #2a2a3d; border-radius:4px; padding:14px 16px; font-family:'DM Mono',monospace; font-size:0.85rem; color:#e8e8f0; outline:none; margin-bottom:12px;"
+    />
+    <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:#4a6a4a;margin-bottom:12px;padding:8px 12px;background:rgba(200,240,74,0.05);border:1px solid rgba(200,240,74,0.15);border-radius:3px;">
+      FMP key enables real DCF analysis from 5-year financial statements. Free at financialmodelingprep.com. Without it, the app uses Yahoo Finance data.
+    </div>
     <div id="api-error" style="color:#f04a6e; font-family:'DM Mono',monospace; font-size:0.72rem; margin-bottom:12px; display:none;">Please enter a valid API key (starts with sk-ant-)</div>
     <button onclick="saveApiKey()" style="width:100%; background:#c8f04a; color:#0a0a0f; border:none; padding:14px; font-family:'DM Mono',monospace; font-size:0.8rem; font-weight:500; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; border-radius:4px;">
       Save & Continue →
@@ -1401,15 +1410,20 @@ Return this exact JSON structure:
 
   function saveApiKey() {
     const key = document.getElementById('api-key-input').value.trim();
+    const fmpKey = document.getElementById('fmp-key-input').value.trim();
     const errEl = document.getElementById('api-error');
     if (!key || key.length < 20) {
-      errEl.textContent = 'Please paste your full API key.';
+      errEl.textContent = 'Please paste your full Anthropic API key.';
       errEl.style.display = 'block';
       return;
     }
     errEl.style.display = 'none';
     ANTHROPIC_API_KEY = key;
     localStorage.setItem('clarity_api_key', key);
+    if (fmpKey && fmpKey.length > 10) {
+      FMP_API_KEY = fmpKey;
+      localStorage.setItem('clarity_fmp_key', fmpKey);
+    }
     document.getElementById('api-setup').style.display = 'none';
   }
 
@@ -1447,97 +1461,309 @@ Return this exact JSON structure:
     }
   }
 
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+  // ── API KEYS ──
+  let FMP_API_KEY = localStorage.getItem('clarity_fmp_key') || '';
 
-  async function fetchAndAnalyze(ticker) {
-    const prompt = `You are both a financial data API and a senior equity research analyst at a top-tier hedge fund. For the stock ticker "${ticker}", return financial data AND a full institutional-grade research report.
+  // ── LAYER 1: DATA FETCHING (FMP + Yahoo fallback) ──
+  async function fetchStockData(ticker) {
+    const proxy = 'https://api.allorigins.win/get?url=';
 
-If the ticker is invalid or unknown, set stockData.valid to false.
+    // Primary: FMP financial statements (5-year history)
+    let fmpData = null;
+    if (FMP_API_KEY) {
+      try {
+        const [profileRes, incomeRes, cashflowRes, balanceRes, quoteRes] = await Promise.all([
+          fetch(proxy + encodeURIComponent(`https://financialmodelingprep.com/api/v3/profile/${ticker}?apikey=${FMP_API_KEY}`)),
+          fetch(proxy + encodeURIComponent(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=5&apikey=${FMP_API_KEY}`)),
+          fetch(proxy + encodeURIComponent(`https://financialmodelingprep.com/api/v3/cash-flow-statement/${ticker}?limit=5&apikey=${FMP_API_KEY}`)),
+          fetch(proxy + encodeURIComponent(`https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?limit=5&apikey=${FMP_API_KEY}`)),
+          fetch(proxy + encodeURIComponent(`https://financialmodelingprep.com/api/v3/quote/${ticker}?apikey=${FMP_API_KEY}`)),
+        ]);
 
-Return ONLY this exact JSON, no markdown, no explanation:
-{
-  "stockData": {
-    "valid": true,
-    "name": "Full Company Name",
-    "sector": "Sector",
-    "industry": "Industry",
-    "description": "2 sentence company description",
-    "currentPrice": 150.00,
-    "change1d": 0.012,
-    "marketCap": 2400000000000,
-    "peRatio": 28.5,
-    "forwardPE": 24.0,
-    "pbRatio": 8.2,
-    "psRatio": 6.5,
-    "beta": 1.2,
-    "fiftyTwoWeekHigh": 200.00,
-    "fiftyTwoWeekLow": 130.00,
-    "revenueGrowth": 0.08,
-    "earningsGrowth": 0.12,
-    "profitMargins": 0.25,
-    "returnOnEquity": 0.45,
-    "debtToEquity": 150.0,
-    "currentRatio": 1.2,
-    "freeCashflow": 90000000000,
-    "targetMeanPrice": 210.00,
-    "recommendationKey": "buy"
-  },
-  "analysis": {
-    "conviction_model": {
-      "valuation_score": 7,
-      "quality_score": 8,
-      "growth_score": 7,
-      "risk_score": 6,
-      "macro_score": 5,
-      "conviction_score": 7,
-      "verdict": "BUY",
-      "valuation_note": "One sentence on valuation sub-score",
-      "quality_note": "One sentence on quality sub-score",
-      "growth_note": "One sentence on growth sub-score",
-      "risk_note": "One sentence on risk sub-score",
-      "macro_note": "One sentence on macro sub-score"
-    },
-    "dcf": {
-      "revenue_growth_assumption": 0.12,
-      "margin_assumption": 0.25,
-      "discount_rate": 0.10,
-      "terminal_multiple": 20,
-      "base_case_price": 175.00,
-      "bull_case_price": 220.00,
-      "bear_case_price": 140.00,
-      "upside_downside": 0.15,
-      "dcf_note": "One sentence explaining the key assumption driving the valuation"
-    },
-    "sensitivity": {
-      "scenarios": [
-        {"assumption": "Revenue growth -2%", "price_impact": -18.00, "new_price": 157.00},
-        {"assumption": "Margins compress 200bps", "price_impact": -12.00, "new_price": 163.00},
-        {"assumption": "Discount rate +1%", "price_impact": -15.00, "new_price": 160.00},
-        {"assumption": "Revenue growth +2%", "price_impact": 20.00, "new_price": 195.00},
-        {"assumption": "Multiple expansion 2x", "price_impact": 22.00, "new_price": 197.00}
-      ]
-    },
-    "analyst_summary": "2-3 sentence professional summary",
-    "plain_english": "2-3 sentence plain English explanation for first-time investors",
-    "reward_factors": [
-      {"name": "Factor name", "score": 8, "detail": "One sentence explanation"},
-      {"name": "Factor name", "score": 7, "detail": "One sentence explanation"},
-      {"name": "Factor name", "score": 6, "detail": "One sentence explanation"}
-    ],
-    "risk_factors": [
-      {"name": "Risk name", "score": 7, "detail": "One sentence explanation"},
-      {"name": "Risk name", "score": 6, "detail": "One sentence explanation"},
-      {"name": "Risk name", "score": 5, "detail": "One sentence explanation"}
-    ],
-    "valuation_take": "2 sentences on whether stock is cheap, fairly valued, or expensive",
-    "macro_sensitivity": "1 sentence on how interest rates affect this stock",
-    "what_could_go_wrong": "2 sentences on the biggest bear case, be specific",
-    "what_drives_stock": "2 sentences on the 1-2 key metrics or catalysts that will drive this stock up or down over the next 12 months",
-    "macro_context": {
-      "rate_sensitivity": "HIGH",
-      "rate_impact": "NEGATIVE",
-      "rate_note": "Short note on rate sensitivity"
+        const [profileJson, incomeJson, cashflowJson, balanceJson, quoteJson] = await Promise.all([
+          profileRes.json(), incomeRes.json(), cashflowRes.json(), balanceRes.json(), quoteRes.json()
+        ]);
+
+        const profile = JSON.parse(profileJson.contents)[0];
+        const income = JSON.parse(incomeJson.contents);
+        const cashflow = JSON.parse(cashflowJson.contents);
+        const balance = JSON.parse(balanceJson.contents);
+        const quote = JSON.parse(quoteJson.contents)[0];
+
+        if (profile && income?.length > 0) {
+          const latest = income[0];
+          const latestCF = cashflow[0] || {};
+          const latestBal = balance[0] || {};
+
+          // Build 5-year revenue history
+          const revenueHistory = income.map(y => ({ year: y.calendarYear, revenue: y.revenue })).reverse();
+
+          // Compute historical averages for DCF assumptions
+          const avgRevenueGrowth = income.length > 1
+            ? income.slice(0, -1).reduce((sum, y, i) => {
+                const prev = income[i + 1];
+                return sum + (prev.revenue > 0 ? (y.revenue - prev.revenue) / prev.revenue : 0);
+              }, 0) / (income.length - 1)
+            : 0.08;
+
+          const avgOperatingMargin = income.reduce((sum, y) => sum + (y.revenue > 0 ? y.operatingIncome / y.revenue : 0), 0) / income.length;
+          const avgTaxRate = income.reduce((sum, y) => sum + (y.incomeBeforeTax > 0 ? Math.max(0, y.incomeTaxExpense / y.incomeBeforeTax) : 0.21), 0) / income.length;
+          const avgCapexPct = cashflow.reduce((sum, y) => sum + (y.revenue > 0 ? Math.abs(y.capitalExpenditure || 0) / y.revenue : 0.05), 0) / cashflow.length;
+          const avgDepreciation = cashflow.reduce((sum, y) => sum + (y.depreciationAndAmortization || 0), 0) / cashflow.length;
+
+          fmpData = {
+            source: 'FMP',
+            lastUpdated: new Date().toISOString(),
+            name: profile.companyName,
+            sector: profile.sector,
+            industry: profile.industry,
+            description: profile.description?.substring(0, 400),
+            currentPrice: quote?.price || profile.price,
+            change1d: quote?.changesPercentage ? quote.changesPercentage / 100 : null,
+            marketCap: profile.mktCap,
+            peRatio: quote?.pe || null,
+            forwardPE: null,
+            beta: profile.beta,
+            fiftyTwoWeekHigh: quote?.yearHigh || null,
+            fiftyTwoWeekLow: quote?.yearLow || null,
+            targetMeanPrice: quote?.priceAvg200 || null,
+            // Full financial statement data
+            revenue: latest.revenue,
+            revenueHistory,
+            operatingIncome: latest.operatingIncome,
+            operatingMargin: latest.revenue > 0 ? latest.operatingIncome / latest.revenue : null,
+            netIncome: latest.netIncome,
+            profitMargins: latest.revenue > 0 ? latest.netIncome / latest.revenue : null,
+            revenueGrowth: revenueHistory.length > 1
+              ? (revenueHistory[revenueHistory.length-1].revenue - revenueHistory[revenueHistory.length-2].revenue) / revenueHistory[revenueHistory.length-2].revenue
+              : null,
+            ebitda: latest.ebitda,
+            eps: latest.eps,
+            sharesOutstanding: profile.sharesOutstanding,
+            netDebt: (latestBal.totalDebt || 0) - (latestBal.cashAndCashEquivalents || 0),
+            debtToEquity: latestBal.totalStockholdersEquity > 0 ? (latestBal.totalDebt || 0) / latestBal.totalStockholdersEquity : null,
+            returnOnEquity: latestBal.totalStockholdersEquity > 0 ? latest.netIncome / latestBal.totalStockholdersEquity : null,
+            freeCashflow: latestCF.freeCashFlow || null,
+            capitalExpenditure: latestCF.capitalExpenditure || null,
+            depreciation: latestCF.depreciationAndAmortization || null,
+            changeInWorkingCapital: latestCF.changeInWorkingCapital || null,
+            taxRate: avgTaxRate,
+            // Historical averages for DCF
+            historicalAvgRevenueGrowth: avgRevenueGrowth,
+            historicalAvgOperatingMargin: avgOperatingMargin,
+            historicalAvgCapexPct: avgCapexPct,
+            historicalAvgDepreciation: avgDepreciation,
+          };
+        }
+      } catch(e) {
+        console.warn('FMP fetch failed, falling back to AI estimates', e);
+      }
     }
+
+    // Fallback: Yahoo Finance proxy if FMP unavailable
+    if (!fmpData) {
+      const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=summaryDetail,financialData,defaultKeyStatistics,assetProfile,price`;
+      const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
+      if (!res.ok) throw new Error('Could not fetch stock data.');
+      const wrapper = await res.json();
+      const data = JSON.parse(wrapper.contents);
+      if (data.quoteSummary?.error || !data.quoteSummary?.result) throw new Error(`Ticker "${ticker}" not found.`);
+      const r = data.quoteSummary.result[0];
+      const price = r.price; const summary = r.summaryDetail;
+      const financial = r.financialData; const keyStats = r.defaultKeyStatistics;
+      const profile = r.assetProfile;
+      fmpData = {
+        source: 'Yahoo Finance',
+        lastUpdated: new Date().toISOString(),
+        name: price?.longName || price?.shortName || ticker,
+        sector: profile?.sector || 'N/A',
+        industry: profile?.industry || 'N/A',
+        description: profile?.longBusinessSummary?.substring(0, 400) || '',
+        currentPrice: price?.regularMarketPrice?.raw,
+        change1d: price?.regularMarketChangePercent?.raw,
+        marketCap: price?.marketCap?.raw,
+        peRatio: summary?.trailingPE?.raw,
+        forwardPE: summary?.forwardPE?.raw,
+        beta: summary?.beta?.raw,
+        fiftyTwoWeekHigh: summary?.fiftyTwoWeekHigh?.raw,
+        fiftyTwoWeekLow: summary?.fiftyTwoWeekLow?.raw,
+        revenueGrowth: financial?.revenueGrowth?.raw,
+        profitMargins: financial?.profitMargins?.raw,
+        returnOnEquity: financial?.returnOnEquity?.raw,
+        debtToEquity: financial?.debtToEquity?.raw,
+        freeCashflow: financial?.freeCashflow?.raw,
+        targetMeanPrice: financial?.targetMeanPrice?.raw,
+        sharesOutstanding: keyStats?.sharesOutstanding?.raw,
+        revenue: financial?.totalRevenue?.raw,
+        operatingMargin: financial?.operatingMargins?.raw,
+        taxRate: 0.21,
+        netDebt: null,
+        historicalAvgRevenueGrowth: financial?.revenueGrowth?.raw || 0.08,
+        historicalAvgOperatingMargin: financial?.operatingMargins?.raw || 0.15,
+        historicalAvgCapexPct: 0.05,
+        historicalAvgDepreciation: null,
+        revenueHistory: null,
+      };
+    }
+
+    if (!fmpData.currentPrice) throw new Error(`Ticker "${ticker}" not found.`);
+    return fmpData;
+  }
+
+  // ── LAYER 2: DETERMINISTIC DCF ENGINE ──
+  // All math is performed here — AI never touches these numbers
+  function runDCFEngine(data, assumptions) {
+    const {
+      revenueGrowthRate,    // e.g. 0.10
+      operatingMargin,      // e.g. 0.20
+      taxRate,              // e.g. 0.21
+      capexPct,             // e.g. 0.05
+      discountRate,         // e.g. 0.10 (WACC)
+      terminalGrowthRate,   // e.g. 0.03
+    } = assumptions;
+
+    const baseRevenue = data.revenue || 0;
+    const sharesOutstanding = data.sharesOutstanding || 1;
+    const netDebt = data.netDebt || 0;
+    const depreciation = data.historicalAvgDepreciation || baseRevenue * 0.03;
+
+    if (!baseRevenue || !sharesOutstanding) {
+      return null; // Data unavailable
+    }
+
+    // Project 5 years of FCF
+    let projectedFCFs = [];
+    let revenue = baseRevenue;
+    for (let t = 1; t <= 5; t++) {
+      revenue = revenue * (1 + revenueGrowthRate);
+      const operatingIncome = revenue * operatingMargin;
+      const nopat = operatingIncome * (1 - taxRate);
+      const capex = revenue * capexPct;
+      const fcf = nopat + depreciation - capex; // simplified ΔWC=0
+      projectedFCFs.push({ year: t, revenue, operatingIncome, nopat, capex, fcf });
+    }
+
+    // Terminal value (perpetual growth model)
+    const terminalFCF = projectedFCFs[4].fcf;
+    const terminalValue = terminalFCF * (1 + terminalGrowthRate) / (discountRate - terminalGrowthRate);
+
+    // Discount all cash flows
+    const pvFCFs = projectedFCFs.reduce((sum, p) => sum + p.fcf / Math.pow(1 + discountRate, p.year), 0);
+    const pvTerminal = terminalValue / Math.pow(1 + discountRate, 5);
+    const enterpriseValue = pvFCFs + pvTerminal;
+    const equityValue = enterpriseValue - netDebt;
+    const fairValuePerShare = equityValue / sharesOutstanding;
+
+    return {
+      assumptions,
+      projectedFCFs,
+      terminalValue,
+      pvFCFs,
+      pvTerminal,
+      enterpriseValue,
+      equityValue,
+      fairValuePerShare,
+      upsideDownside: data.currentPrice > 0 ? (fairValuePerShare - data.currentPrice) / data.currentPrice : 0,
+    };
+  }
+
+  // ── LAYER 3: SENSITIVITY ANALYSIS (programmatic) ──
+  function runSensitivityAnalysis(data, baseAssumptions) {
+    const scenarios = [
+      { label: 'Rev Growth +1%', assumptions: { ...baseAssumptions, revenueGrowthRate: baseAssumptions.revenueGrowthRate + 0.01 } },
+      { label: 'Rev Growth -1%', assumptions: { ...baseAssumptions, revenueGrowthRate: baseAssumptions.revenueGrowthRate - 0.01 } },
+      { label: 'Discount Rate +1%', assumptions: { ...baseAssumptions, discountRate: baseAssumptions.discountRate + 0.01 } },
+      { label: 'Discount Rate -1%', assumptions: { ...baseAssumptions, discountRate: baseAssumptions.discountRate - 0.01 } },
+      { label: 'Margin +2%', assumptions: { ...baseAssumptions, operatingMargin: baseAssumptions.operatingMargin + 0.02 } },
+      { label: 'Margin -2%', assumptions: { ...baseAssumptions, operatingMargin: baseAssumptions.operatingMargin - 0.02 } },
+    ];
+
+    return scenarios.map(s => {
+      const result = runDCFEngine(data, s.assumptions);
+      return {
+        label: s.label,
+        fairValue: result ? result.fairValuePerShare : null,
+        impact: result && data.currentPrice ? result.fairValuePerShare - data.currentPrice : null,
+      };
+    });
+  }
+
+  // ── LAYER 4: ASSUMPTION WARNINGS ──
+  function getAssumptionWarnings(assumptions, data) {
+    const warnings = [];
+    const histGrowth = data.historicalAvgRevenueGrowth || 0;
+    if (assumptions.revenueGrowthRate > histGrowth * 2) warnings.push('⚠ Aggressive assumption: Revenue growth is more than 2× historical average.');
+    if (assumptions.discountRate < 0.06) warnings.push('⚠ Aggressive assumption: Discount rate below 6% — unusually low WACC.');
+    if (assumptions.terminalGrowthRate > 0.04) warnings.push('⚠ Aggressive assumption: Terminal growth rate exceeds long-term GDP estimates.');
+    if (assumptions.operatingMargin > (data.historicalAvgOperatingMargin || 0) * 1.5) warnings.push('⚠ Aggressive assumption: Operating margin significantly above historical average.');
+    return warnings;
+  }
+
+  // ── LAYER 5: AI INTERPRETATION (strictly limited) ──
+  async function getAIInterpretation(ticker, data, dcfResult, sensitivityResults) {
+    const prompt = `You are a senior equity research analyst. You have been given pre-computed financial data and DCF valuation results. Your role is ONLY to interpret and explain these numbers — you must NOT invent any financial data, compute any math, or override the provided valuations.
+
+COMPANY: ${data.name} (${ticker})
+SECTOR: ${data.sector} | INDUSTRY: ${data.industry}
+DATA SOURCE: ${data.source} | LAST UPDATED: ${data.lastUpdated}
+
+MARKET DATA (sourced from ${data.source}):
+- Current Price: $${data.currentPrice?.toFixed(2)}
+- Market Cap: ${formatLargeNumber(data.marketCap)}
+- P/E Ratio: ${data.peRatio?.toFixed(1) || 'N/A'}
+- Revenue: ${formatLargeNumber(data.revenue)}
+- Revenue Growth (YoY): ${data.revenueGrowth ? pct(data.revenueGrowth) : 'N/A'}
+- Operating Margin: ${data.operatingMargin ? pct(data.operatingMargin) : 'N/A'}
+- Profit Margin: ${data.profitMargins ? pct(data.profitMargins) : 'N/A'}
+- Beta: ${data.beta?.toFixed(2) || 'N/A'}
+- Free Cash Flow: ${formatLargeNumber(data.freeCashflow)}
+- Debt/Equity: ${data.debtToEquity?.toFixed(2) || 'N/A'}
+- Return on Equity: ${data.returnOnEquity ? pct(data.returnOnEquity) : 'N/A'}
+
+PRE-COMPUTED DCF RESULTS (do not modify):
+${dcfResult ? `
+- DCF Fair Value: $${dcfResult.fairValuePerShare.toFixed(2)}
+- Upside/Downside vs current price: ${pct(dcfResult.upsideDownside)}
+- Enterprise Value: ${formatLargeNumber(dcfResult.enterpriseValue)}
+- PV of FCFs: ${formatLargeNumber(dcfResult.pvFCFs)}
+- PV of Terminal Value: ${formatLargeNumber(dcfResult.pvTerminal)}
+- Assumptions used: Rev Growth ${pct(dcfResult.assumptions.revenueGrowthRate)}, Op Margin ${pct(dcfResult.assumptions.operatingMargin)}, WACC ${pct(dcfResult.assumptions.discountRate)}, Terminal Growth ${pct(dcfResult.assumptions.terminalGrowthRate)}
+` : 'DCF not available — insufficient financial data.'}
+
+SENSITIVITY ANALYSIS (pre-computed):
+${sensitivityResults.map(s => `${s.label}: Fair Value $${s.fairValue?.toFixed(0)||'N/A'} (${s.impact >= 0 ? '+' : ''}$${s.impact?.toFixed(0)||'N/A'} vs current)`).join('\n')}
+
+Based ONLY on the above data, return ONLY valid JSON with no markdown:
+{
+  "conviction_model": {
+    "conviction_score": <integer 1-10 based on data above>,
+    "verdict": <"STRONG BUY"|"BUY"|"HOLD"|"SELL"|"STRONG SELL">,
+    "valuation_score": <1-10>, "valuation_note": <one sentence>,
+    "quality_score": <1-10>, "quality_note": <one sentence>,
+    "growth_score": <1-10>, "growth_note": <one sentence>,
+    "risk_score": <1-10>, "risk_note": <one sentence>,
+    "macro_score": <1-10>, "macro_note": <one sentence>
+  },
+  "investment_thesis": <2-3 sentence professional investment thesis>,
+  "key_value_drivers": <2 sentences on the 1-2 metrics that will drive this stock>,
+  "analyst_summary": <2-3 sentence professional summary>,
+  "plain_english": <2-3 sentence plain English summary for first-time investors>,
+  "reward_factors": [
+    {"name": <string>, "score": <1-10>, "detail": <one sentence>},
+    {"name": <string>, "score": <1-10>, "detail": <one sentence>},
+    {"name": <string>, "score": <1-10>, "detail": <one sentence>}
+  ],
+  "risk_factors": [
+    {"name": <string>, "score": <1-10>, "detail": <one sentence>},
+    {"name": <string>, "score": <1-10>, "detail": <one sentence>},
+    {"name": <string>, "score": <1-10>, "detail": <one sentence>}
+  ],
+  "what_invalidates_thesis": <2 sentences on what would make this thesis wrong>,
+  "macro_sensitivity": <1 sentence on interest rate sensitivity>,
+  "macro_context": {
+    "rate_sensitivity": <"HIGH"|"MEDIUM"|"LOW">,
+    "rate_impact": <"POSITIVE"|"NEGATIVE"|"NEUTRAL">,
+    "rate_note": <short note>
   }
 }`;
 
@@ -1551,22 +1777,54 @@ Return ONLY this exact JSON, no markdown, no explanation:
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 2500,
+        max_tokens: 2000,
         messages: [{ role: 'user', content: prompt }]
       })
     });
 
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error('API error: ' + (err.error?.message || 'Check your API key and try again.'));
-    }
-
+    if (!response.ok) throw new Error('AI analysis failed.');
     const result = await response.json();
     const text = result.content[0].text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(text);
+    return JSON.parse(text);
+  }
 
-    if (!parsed.stockData?.valid) throw new Error(`Ticker "${ticker}" not found. Please check and try again.`);
-    return { stockData: parsed.stockData, analysis: parsed.analysis };
+  // ── MAIN ORCHESTRATOR ──
+  async function fetchAndAnalyze(ticker) {
+    // Step 1: Fetch real data
+    setLoadingStep('Fetching financial data from ' + (FMP_API_KEY ? 'FMP' : 'Yahoo Finance') + '...');
+    const stockData = await fetchStockData(ticker);
+
+    // Step 2: Build assumptions from historical data
+    const baseAssumptions = {
+      revenueGrowthRate: Math.min(Math.max(stockData.historicalAvgRevenueGrowth || 0.08, -0.1), 0.5),
+      operatingMargin: Math.min(Math.max(stockData.historicalAvgOperatingMargin || 0.15, 0.01), 0.8),
+      taxRate: Math.min(Math.max(stockData.taxRate || 0.21, 0.05), 0.4),
+      capexPct: Math.min(Math.max(stockData.historicalAvgCapexPct || 0.05, 0.01), 0.3),
+      discountRate: 0.10, // standard WACC
+      terminalGrowthRate: 0.025,
+    };
+
+    // Step 3: Run deterministic DCF (no AI involved)
+    setLoadingStep('Running DCF valuation engine...');
+    const dcfResult = runDCFEngine(stockData, baseAssumptions);
+
+    // Step 4: Run sensitivity analysis (no AI involved)
+    const sensitivityResults = runSensitivityAnalysis(stockData, baseAssumptions);
+
+    // Step 5: Get assumption warnings
+    const warnings = getAssumptionWarnings(baseAssumptions, stockData);
+
+    // Step 6: AI interprets the pre-computed results
+    setLoadingStep('AI interpreting valuation outputs...');
+    const analysis = await getAIInterpretation(ticker, stockData, dcfResult, sensitivityResults);
+
+    // Attach computed data to analysis object for rendering
+    analysis.dcf = dcfResult;
+    analysis.sensitivity_computed = sensitivityResults;
+    analysis.assumptions = baseAssumptions;
+    analysis.warnings = warnings;
+
+    return { stockData, analysis };
   }
 
   // ── TOOLTIP DEFINITIONS ──
@@ -1793,7 +2051,61 @@ Return ONLY this exact JSON, no markdown, no explanation:
     `;
     grid.appendChild(convCard);
 
-    // ── REWARD / RISK cards ──
+    // ── DATA SOURCE + ASSUMPTIONS PANEL ──
+    const dcfResult = ai.dcf;
+    const sensitivityResults = ai.sensitivity_computed || [];
+    const assumptions = ai.assumptions || {};
+    const warnings = ai.warnings || [];
+
+    const dataCard = document.createElement('div');
+    dataCard.className = 'analysis-card';
+    dataCard.style.gridColumn = '1 / -1';
+    dataCard.innerHTML = `
+      <div class="card-label teal">Data Integrity & Assumptions</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;">Data Source</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;"></div>
+            <span style="font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--text);">${data.source}</span>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);">Last updated: ${new Date(data.lastUpdated).toLocaleString()}</div>
+          ${data.revenueHistory ? `
+          <div style="margin-top:12px;">
+            <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">5-Year Revenue History</div>
+            ${data.revenueHistory.map(r => `
+              <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);">
+                <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted);">${r.year}</span>
+                <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text);">$${formatLargeNumber(r.revenue)}</span>
+              </div>
+            `).join('')}
+          </div>` : '<div style="font-family:\'DM Mono\',monospace;font-size:0.7rem;color:var(--muted);margin-top:8px;">5-year history not available from this data source.</div>'}
+        </div>
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;">DCF Assumptions (Derived from Historical Data)</div>
+          ${Object.entries({
+            'Revenue Growth Rate': pct(assumptions.revenueGrowthRate),
+            'Operating Margin': pct(assumptions.operatingMargin),
+            'Tax Rate': pct(assumptions.taxRate),
+            'CapEx % of Revenue': pct(assumptions.capexPct),
+            'Discount Rate (WACC)': pct(assumptions.discountRate),
+            'Terminal Growth Rate': pct(assumptions.terminalGrowthRate),
+          }).map(([k,v]) => `
+            <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
+              <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted);">${k}</span>
+              <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text);font-weight:500;">${v}</span>
+            </div>
+          `).join('')}
+          ${warnings.length > 0 ? `
+          <div style="margin-top:12px;">
+            ${warnings.map(w => `<div style="font-family:'DM Mono',monospace;font-size:0.68rem;color:#f0c84a;padding:6px 10px;background:rgba(240,200,74,0.08);border:1px solid rgba(240,200,74,0.2);border-radius:3px;margin-bottom:6px;">${w}</div>`).join('')}
+          </div>` : ''}
+        </div>
+      </div>
+    `;
+    grid.appendChild(dataCard);
+
+    // ── REWARD / RISK CARDS ──
     const rewardCard = document.createElement('div');
     rewardCard.className = 'analysis-card';
     rewardCard.innerHTML = `
@@ -1822,85 +2134,113 @@ Return ONLY this exact JSON, no markdown, no explanation:
     `;
     grid.appendChild(riskCard);
 
-    // ── DCF VALUATION MODEL ──
-    const upside = dcf.upside_downside;
-    const upsideColor = upside >= 0 ? '#c8f04a' : '#f04a6e';
+    // ── DCF VALUATION MODEL (deterministic) ──
     const dcfCard = document.createElement('div');
     dcfCard.className = 'analysis-card';
     dcfCard.style.gridColumn = '1 / -1';
-    dcfCard.innerHTML = `
-      <div class="card-label gold">DCF Valuation Model</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
-        <div>
-          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:16px;font-weight:300">${dcf.dcf_note}</div>
-          <div style="display:grid;gap:8px;">
-            ${[
-              ['Revenue Growth Assumption', pct(dcf.revenue_growth_assumption), 'Revenue Growth'],
-              ['Margin Assumption', pct(dcf.margin_assumption), 'Profit Margin'],
-              ['Discount Rate (WACC)', pct(dcf.discount_rate), 'WACC'],
-              ['Terminal Multiple', dcf.terminal_multiple + 'x', 'Terminal Multiple'],
-            ].map(([k,v,tip]) => `
-              <div class="tooltip-wrap" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
-                <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted)">${k}</span>
-                <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text)">${v}</span>
-                ${makeTooltip(tip)}
+
+    if (dcfResult) {
+      const upside = dcfResult.upsideDownside;
+      const upsideColor = upside >= 0 ? '#c8f04a' : '#f04a6e';
+      const bullPrice = dcfResult.fairValuePerShare * 1.20;
+      const bearPrice = dcfResult.fairValuePerShare * 0.80;
+      dcfCard.innerHTML = `
+        <div class="card-label gold">DCF Valuation Engine — Deterministic</div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);margin-bottom:16px;">All math computed by deterministic code. AI did not generate these numbers.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;">5-Year FCF Projections</div>
+            <div style="display:grid;gap:4px;">
+              ${dcfResult.projectedFCFs.map(p => `
+                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);">
+                  <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--muted);">Year ${p.year}</span>
+                  <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--text);">FCF: $${formatLargeNumber(p.fcf)}</span>
+                  <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--muted);">Rev: $${formatLargeNumber(p.revenue)}</span>
+                </div>
+              `).join('')}
+            </div>
+            <div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:3px;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--muted);">PV of FCFs</span>
+                <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--text);">$${formatLargeNumber(dcfResult.pvFCFs)}</span>
               </div>
-            `).join('')}
-          </div>
-        </div>
-        <div>
-          <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:16px;">Price Targets</div>
-          <div style="display:grid;gap:10px;">
-            <div style="background:rgba(200,240,74,0.08);border:1px solid rgba(200,240,74,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#c8f04a">BULL CASE</span>
-              <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#c8f04a">$${dcf.bull_case_price.toFixed(0)}</span>
-            </div>
-            <div style="background:rgba(240,200,74,0.08);border:1px solid rgba(240,200,74,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#f0c84a">BASE CASE</span>
-              <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#f0c84a">$${dcf.base_case_price.toFixed(0)}</span>
-            </div>
-            <div style="background:rgba(240,74,110,0.08);border:1px solid rgba(240,74,110,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#f04a6e">BEAR CASE</span>
-              <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#f04a6e">$${dcf.bear_case_price.toFixed(0)}</span>
-            </div>
-            <div style="text-align:center;margin-top:4px;">
-              <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted)">Base case implies </span>
-              <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:${upsideColor};font-weight:500">${upside >= 0 ? '+' : ''}${(upside * 100).toFixed(1)}% ${upside >= 0 ? 'upside' : 'downside'}</span>
-              <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted)"> from current price</span>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--muted);">PV of Terminal Value</span>
+                <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--text);">$${formatLargeNumber(dcfResult.pvTerminal)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:4px;">
+                <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--muted);">Enterprise Value</span>
+                <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--accent);">$${formatLargeNumber(dcfResult.enterpriseValue)}</span>
+              </div>
             </div>
           </div>
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:16px;">Valuation Scenarios</div>
+            <div style="display:grid;gap:10px;">
+              <div style="background:rgba(200,240,74,0.08);border:1px solid rgba(200,240,74,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#c8f04a;">BULL CASE (+20%)</div>
+                  <div style="font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--muted);">Optimistic assumptions</div>
+                </div>
+                <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#c8f04a;">$${bullPrice.toFixed(0)}</span>
+              </div>
+              <div style="background:rgba(240,200,74,0.08);border:1px solid rgba(240,200,74,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#f0c84a;">BASE CASE (DCF)</div>
+                  <div style="font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--muted);">Historical avg assumptions</div>
+                </div>
+                <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#f0c84a;">$${dcfResult.fairValuePerShare.toFixed(0)}</span>
+              </div>
+              <div style="background:rgba(240,74,110,0.08);border:1px solid rgba(240,74,110,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#f04a6e;">BEAR CASE (-20%)</div>
+                  <div style="font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--muted);">Conservative assumptions</div>
+                </div>
+                <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#f04a6e;">$${bearPrice.toFixed(0)}</span>
+              </div>
+              <div style="text-align:center;margin-top:4px;">
+                <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted);">Base case implies </span>
+                <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:${upsideColor};font-weight:500;">${upside >= 0 ? '+' : ''}${(upside*100).toFixed(1)}% ${upside >= 0 ? 'upside' : 'downside'}</span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    `;
+      `;
+    } else {
+      dcfCard.innerHTML = `
+        <div class="card-label gold">DCF Valuation Engine</div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--muted);padding:20px 0;">
+          DCF not available — insufficient financial statement data for this ticker.<br>
+          <span style="font-size:0.7rem;">Add an FMP API key in ⚙ Settings to enable full DCF analysis.</span>
+        </div>
+      `;
+    }
     grid.appendChild(dcfCard);
 
-    // ── SENSITIVITY TABLE ──
+    // ── SENSITIVITY TABLE (programmatic) ──
     const sensCard = document.createElement('div');
     sensCard.className = 'analysis-card';
     sensCard.style.gridColumn = '1 / -1';
     sensCard.innerHTML = `
-      <div class="card-label teal tooltip-wrap" style="display:inline-flex;align-items:center;gap:6px;">
-        Sensitivity Analysis — Stress Testing Assumptions
-        ${makeTooltip('Sensitivity')}
-      </div>
-      <div style="font-size:0.78rem;color:var(--muted);margin-bottom:16px;font-weight:300">How would different scenarios affect the base case price target of $${dcf.base_case_price.toFixed(0)}?</div>
-      <div style="display:grid;gap:8px;">
-        <div style="display:grid;grid-template-columns:1fr auto auto;gap:16px;padding:8px 0;border-bottom:1px solid var(--border);">
-          <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase">Assumption Change</span>
-          <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;text-align:right">Impact</span>
-          <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;text-align:right">New Target</span>
+      <div class="card-label teal">Sensitivity Analysis — Programmatic</div>
+      <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);margin-bottom:16px;">Computed by code. Each row isolates one assumption change while holding others constant.</div>
+      <div style="display:grid;gap:6px;">
+        <div style="display:grid;grid-template-columns:1fr auto auto;gap:16px;padding:6px 0;border-bottom:1px solid var(--border);">
+          <span style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;">Scenario</span>
+          <span style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;text-align:right;">Fair Value</span>
+          <span style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;text-align:right;">vs Current</span>
         </div>
-        ${sens.scenarios.map(s => {
-          const pos = s.price_impact >= 0;
+        ${sensitivityResults.length > 0 ? sensitivityResults.map(s => {
+          const pos = s.impact >= 0;
           const color = pos ? '#c8f04a' : '#f04a6e';
           return `
-            <div style="display:grid;grid-template-columns:1fr auto auto;gap:16px;padding:10px 0;border-bottom:1px solid rgba(42,42,61,0.5);align-items:center;">
-              <span style="font-size:0.85rem;color:var(--text)">${s.assumption}</span>
-              <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:${color};text-align:right">${pos ? '+' : ''}$${s.price_impact.toFixed(0)}</span>
-              <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--text);text-align:right">$${s.new_price.toFixed(0)}</span>
+            <div style="display:grid;grid-template-columns:1fr auto auto;gap:16px;padding:8px 0;border-bottom:1px solid rgba(42,42,61,0.5);align-items:center;">
+              <span style="font-size:0.85rem;color:var(--text);">${s.label}</span>
+              <span style="font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--text);text-align:right;">$${s.fairValue?.toFixed(0) || 'N/A'}</span>
+              <span style="font-family:'DM Mono',monospace;font-size:0.78rem;color:${color};text-align:right;">${pos ? '+' : ''}$${s.impact?.toFixed(0) || 'N/A'}</span>
             </div>
           `;
-        }).join('')}
+        }).join('') : '<div style="font-family:\'DM Mono\',monospace;font-size:0.78rem;color:var(--muted);padding:12px 0;">Sensitivity analysis requires DCF data. Add FMP key for full analysis.</div>'}
       </div>
     `;
     grid.appendChild(sensCard);
@@ -1912,16 +2252,16 @@ Return ONLY this exact JSON, no markdown, no explanation:
     summaryCard.innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;">
         <div>
-          <div class="card-label gold">What Drives This Stock?</div>
-          <div class="card-content">${ai.what_drives_stock}</div>
+          <div class="card-label gold">Key Value Drivers</div>
+          <div class="card-content">${ai.key_value_drivers || ai.what_drives_stock || ''}</div>
         </div>
         <div>
-          <div class="card-label teal">Analyst Summary</div>
-          <div class="card-content">${ai.analyst_summary}</div>
+          <div class="card-label teal">Investment Thesis</div>
+          <div class="card-content">${ai.investment_thesis || ai.analyst_summary || ''}</div>
         </div>
         <div>
-          <div class="card-label danger">Bear Case — What Could Go Wrong</div>
-          <div class="card-content" style="color:#cc9999">${ai.what_could_go_wrong}</div>
+          <div class="card-label danger">What Would Invalidate Thesis</div>
+          <div class="card-content" style="color:#cc9999">${ai.what_invalidates_thesis || ai.what_could_go_wrong || ''}</div>
           <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
             <div class="card-label" style="font-size:0.6rem;color:var(--muted);margin-bottom:8px">MACRO SENSITIVITY</div>
             <div class="card-content">${ai.macro_sensitivity}</div>
@@ -1971,20 +2311,23 @@ Return ONLY this exact JSON, no markdown, no explanation:
       return '<div style="background:white;padding:8px 10px;"><div style="display:flex;justify-content:space-between;"><span style="font-size:8px;color:#555;text-transform:uppercase;font-family:monospace;">'+row[0]+'</span><span style="font-size:8px;color:#aaa;font-family:monospace;">'+row[1]+'</span></div><div style="font-size:16px;font-weight:700;margin:2px 0;">'+row[2]+'<span style="font-size:9px;color:#aaa;">/10</span></div><div style="font-size:8px;color:#666;line-height:1.3;">'+row[3]+'</div></div>';
     }).join('');
 
-    const dcfRowsHtml = [
-      ['Revenue Growth', pct(dcf.revenue_growth_assumption)],
-      ['Margin Assumption', pct(dcf.margin_assumption)],
-      ['Discount Rate (WACC)', pct(dcf.discount_rate)],
-      ['Terminal Multiple', dcf.terminal_multiple+'x'],
+    const dcfEngine = ai.dcf;
+    const sensResults = ai.sensitivity_computed || [];
+
+    const dcfRowsHtml = dcfEngine ? [
+      ['Revenue Growth', pct(dcfEngine.assumptions.revenueGrowthRate)],
+      ['Operating Margin', pct(dcfEngine.assumptions.operatingMargin)],
+      ['Discount Rate (WACC)', pct(dcfEngine.assumptions.discountRate)],
+      ['Terminal Growth', pct(dcfEngine.assumptions.terminalGrowthRate)],
     ].map(function(row) {
       return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee;font-size:10px;"><span style="color:#666;">'+row[0]+'</span><span style="font-weight:700;">'+row[1]+'</span></div>';
-    }).join('');
+    }).join('') : '<div style="font-size:9px;color:#888;">DCF data unavailable</div>';
 
-    const sensHtml = sens.scenarios.map(function(s) {
-      var col = s.price_impact >= 0 ? '#1a6b1a' : '#8a0000';
-      var sign = s.price_impact >= 0 ? '+' : '';
-      return '<div style="display:grid;grid-template-columns:1fr 48px 48px;gap:4px;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:10px;align-items:center;"><span style="color:#333;">'+s.assumption+'</span><span style="font-family:monospace;color:'+col+';text-align:right;">'+sign+'$'+s.price_impact.toFixed(0)+'</span><span style="font-family:monospace;font-weight:700;text-align:right;">$'+s.new_price.toFixed(0)+'</span></div>';
-    }).join('');
+    const sensHtml = sensResults.length > 0 ? sensResults.map(function(s) {
+      var col = s.impact >= 0 ? '#1a6b1a' : '#8a0000';
+      var sign = s.impact >= 0 ? '+' : '';
+      return '<div style="display:grid;grid-template-columns:1fr 48px 48px;gap:4px;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:10px;align-items:center;"><span style="color:#333;">'+s.label+'</span><span style="font-family:monospace;color:'+col+';text-align:right;">'+sign+'$'+(s.impact?.toFixed(0)||'N/A')+'</span><span style="font-family:monospace;font-weight:700;text-align:right;">$'+(s.fairValue?.toFixed(0)||'N/A')+'</span></div>';
+    }).join('') : '<div style="font-size:9px;color:#888;">Sensitivity data unavailable — add FMP key</div>';
 
     const rewardHtml = ai.reward_factors.map(function(f) {
       return '<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px;"><span style="font-weight:700;">'+f.name+'</span><span style="color:#1a6b1a;font-family:monospace;">'+f.score+'/10</span></div><div style="height:2px;background:#eee;border-radius:1px;margin-bottom:3px;"><div style="height:100%;width:'+f.score*10+'%;background:#2d7a2d;"></div></div><div style="font-size:9px;color:#666;">'+f.detail+'</div></div>';
@@ -2070,18 +2413,18 @@ Return ONLY this exact JSON, no markdown, no explanation:
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#ddd;border:1px solid #ddd;margin-bottom:10px;">
           <div style="background:#f0fff4;padding:10px;text-align:center;">
             <div style="font-size:7.5px;color:#1a6b1a;font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Bull Case</div>
-            <div style="font-size:18px;font-weight:700;color:#1a6b1a;">$${dcf.bull_case_price.toFixed(0)}</div>
-            <div style="font-size:8px;color:#2d7a2d;margin-top:2px;">${data.currentPrice?((dcf.bull_case_price/data.currentPrice-1)*100).toFixed(0)+'% upside':''}</div>
+            <div style="font-size:18px;font-weight:700;color:#1a6b1a;">$${dcfEngine ? (dcfEngine.fairValuePerShare*1.20).toFixed(0) : 'N/A'}</div>
+            <div style="font-size:8px;color:#2d7a2d;margin-top:2px;">${dcfEngine && data.currentPrice ? ((dcfEngine.fairValuePerShare*1.20/data.currentPrice-1)*100).toFixed(0)+'% upside' : ''}</div>
           </div>
           <div style="background:#fffbf0;padding:10px;text-align:center;">
             <div style="font-size:7.5px;color:#8a6a00;font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Base Case</div>
-            <div style="font-size:18px;font-weight:700;color:#7a5a00;">$${dcf.base_case_price.toFixed(0)}</div>
-            <div style="font-size:8px;color:#8a6a00;margin-top:2px;">${data.currentPrice?((dcf.base_case_price/data.currentPrice-1)*100).toFixed(0)+'% vs current':''}</div>
+            <div style="font-size:18px;font-weight:700;color:#7a5a00;">$${dcfEngine ? dcfEngine.fairValuePerShare.toFixed(0) : 'N/A'}</div>
+            <div style="font-size:8px;color:#8a6a00;margin-top:2px;">${dcfEngine && data.currentPrice ? ((dcfEngine.fairValuePerShare/data.currentPrice-1)*100).toFixed(0)+'% vs current' : ''}</div>
           </div>
           <div style="background:#fff5f5;padding:10px;text-align:center;">
             <div style="font-size:7.5px;color:#8a0000;font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Bear Case</div>
-            <div style="font-size:18px;font-weight:700;color:#7a0000;">$${dcf.bear_case_price.toFixed(0)}</div>
-            <div style="font-size:8px;color:#8a0000;margin-top:2px;">${data.currentPrice?((dcf.bear_case_price/data.currentPrice-1)*100).toFixed(0)+'% downside':''}</div>
+            <div style="font-size:18px;font-weight:700;color:#7a0000;">$${dcfEngine ? (dcfEngine.fairValuePerShare*0.80).toFixed(0) : 'N/A'}</div>
+            <div style="font-size:8px;color:#8a0000;margin-top:2px;">${dcfEngine && data.currentPrice ? ((dcfEngine.fairValuePerShare*0.80/data.currentPrice-1)*100).toFixed(0)+'% downside' : ''}</div>
           </div>
         </div>
         <div style="font-size:10px;color:#444;line-height:1.65;background:#f9f9f9;padding:10px;border-left:3px solid #0a1628;">${ai.valuation_take}</div>
