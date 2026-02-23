@@ -966,7 +966,7 @@
 
     <div style="max-width:640px;margin-top:40px;">
       <div style="font-size:1.05rem;color:#b8b8cc;line-height:1.85;font-weight:300;margin-bottom:32px;">
-        Growing up, money was a source of stress in my household — not because there wasn't enough, but because there was never enough <em style="color:var(--text)">clarity</em>. My parents made financial decisions without access to good information, without the tools that Wall Street takes for granted.
+        Financial literacy is one of the most overlooked problems facing young investors today. Most people entering the market for the first time don't lack ambition or curiosity — they lack access. The research tools, analytical frameworks, and institutional knowledge that professional investors rely on have never been built for everyone else.
       </div>
       <div style="font-size:1.05rem;color:#b8b8cc;line-height:1.85;font-weight:300;margin-bottom:32px;">
         I built Clarity because I believe the same quality of equity research that hedge funds pay thousands of dollars for should be accessible to everyone. Not watered down. Not oversimplified. The real thing — in plain English.
@@ -978,17 +978,22 @@
       <div style="border-top:1px solid var(--border);padding-top:40px;">
         <div class="hero-eyebrow" style="margin-bottom:24px;">What Clarity Does</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          ${[
-            ['Stock Analysis','Enter any ticker and get an AI-generated analyst report — valuation, reward vs. risk, macro context, and a plain English summary.'],
-            ['Portfolio Analysis','Add your full portfolio and let the AI score it, identify weak spots, and suggest specific moves to improve your risk-reward profile.'],
-            ['Conviction Scoring','Every report includes a 1–10 conviction score built from five weighted factors: valuation, quality, growth, risk, and macro sensitivity.'],
-            ['Professional PDF Export','Export any report as a clean, one-page PDF formatted like a real Goldman Sachs or Morgan Stanley research note.'],
-          ].map(([title, desc]) => `
-            <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px;">
-              <div style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;">${title}</div>
-              <div style="font-size:0.88rem;color:#8888aa;line-height:1.65;font-weight:300;">${desc}</div>
-            </div>
-          `).join('')}
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px;">
+            <div style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;">Stock Analysis</div>
+            <div style="font-size:0.88rem;color:#8888aa;line-height:1.65;font-weight:300;">Enter any ticker and get an AI-generated analyst report — valuation, reward vs. risk, macro context, and a plain English summary.</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px;">
+            <div style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;">Portfolio Analysis</div>
+            <div style="font-size:0.88rem;color:#8888aa;line-height:1.65;font-weight:300;">Add your full portfolio and let the AI score it, identify weak spots, and suggest specific moves to improve your risk-reward profile.</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px;">
+            <div style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;">Conviction Scoring</div>
+            <div style="font-size:0.88rem;color:#8888aa;line-height:1.65;font-weight:300;">Every report includes a 1–10 conviction score built from five weighted factors: valuation, quality, growth, risk, and macro sensitivity.</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px;">
+            <div style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;">Professional PDF Export</div>
+            <div style="font-size:0.88rem;color:#8888aa;line-height:1.65;font-weight:300;">Export any report as a clean, one-page PDF formatted like a real Goldman Sachs or Morgan Stanley research note.</div>
+          </div>
         </div>
       </div>
 
