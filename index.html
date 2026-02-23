@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -706,22 +707,10 @@
     document.getElementById('analyze-btn').disabled = true;
 
     try {
-      setLoadingStep('Fetching price & valuation metrics...');
-      await sleep(400);
-
-      // Fetch stock data from Yahoo Finance via a CORS proxy
-      const yahooData = await fetchStockData(ticker);
-      
-      setLoadingStep('Running macro context analysis...');
-      await sleep(400);
-
-      setLoadingStep('Generating AI analyst report...');
-      const analysis = await generateAnalysis(ticker, yahooData);
-
+      setLoadingStep('Running AI analysis...');
+      const { stockData, analysis } = await fetchAndAnalyze(ticker);
       setLoadingStep('Building your report...');
-      await sleep(300);
-
-      renderResults(ticker, yahooData, analysis);
+      renderResults(ticker, stockData, analysis);
 
     } catch (err) {
       document.getElementById('loading').style.display = 'none';
@@ -734,38 +723,96 @@
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  async function fetchStockData(ticker) {
-    // Use Claude to fetch and return real financial data for the ticker
-    const prompt = `You are a financial data API. Return current, accurate financial data for the stock ticker "${ticker}". 
-Use your knowledge of this company's most recent publicly available financials.
-If the ticker is invalid or unknown, set "valid" to false.
+  async function fetchAndAnalyze(ticker) {
+    const prompt = `You are both a financial data API and a senior equity research analyst at a top-tier hedge fund. For the stock ticker "${ticker}", return financial data AND a full institutional-grade research report.
 
-Return ONLY valid JSON, no markdown, no explanation:
+If the ticker is invalid or unknown, set stockData.valid to false.
+
+Return ONLY this exact JSON, no markdown, no explanation:
 {
-  "valid": true,
-  "name": "Full Company Name",
-  "sector": "Sector",
-  "industry": "Industry",
-  "description": "2 sentence company description",
-  "currentPrice": 150.00,
-  "change1d": 0.012,
-  "marketCap": 2400000000000,
-  "peRatio": 28.5,
-  "forwardPE": 24.0,
-  "pbRatio": 8.2,
-  "psRatio": 6.5,
-  "beta": 1.2,
-  "fiftyTwoWeekHigh": 200.00,
-  "fiftyTwoWeekLow": 130.00,
-  "revenueGrowth": 0.08,
-  "earningsGrowth": 0.12,
-  "profitMargins": 0.25,
-  "returnOnEquity": 0.45,
-  "debtToEquity": 150.0,
-  "currentRatio": 1.2,
-  "freeCashflow": 90000000000,
-  "targetMeanPrice": 210.00,
-  "recommendationKey": "buy"
+  "stockData": {
+    "valid": true,
+    "name": "Full Company Name",
+    "sector": "Sector",
+    "industry": "Industry",
+    "description": "2 sentence company description",
+    "currentPrice": 150.00,
+    "change1d": 0.012,
+    "marketCap": 2400000000000,
+    "peRatio": 28.5,
+    "forwardPE": 24.0,
+    "pbRatio": 8.2,
+    "psRatio": 6.5,
+    "beta": 1.2,
+    "fiftyTwoWeekHigh": 200.00,
+    "fiftyTwoWeekLow": 130.00,
+    "revenueGrowth": 0.08,
+    "earningsGrowth": 0.12,
+    "profitMargins": 0.25,
+    "returnOnEquity": 0.45,
+    "debtToEquity": 150.0,
+    "currentRatio": 1.2,
+    "freeCashflow": 90000000000,
+    "targetMeanPrice": 210.00,
+    "recommendationKey": "buy"
+  },
+  "analysis": {
+    "conviction_model": {
+      "valuation_score": 7,
+      "quality_score": 8,
+      "growth_score": 7,
+      "risk_score": 6,
+      "macro_score": 5,
+      "conviction_score": 7,
+      "verdict": "BUY",
+      "valuation_note": "One sentence on valuation sub-score",
+      "quality_note": "One sentence on quality sub-score",
+      "growth_note": "One sentence on growth sub-score",
+      "risk_note": "One sentence on risk sub-score",
+      "macro_note": "One sentence on macro sub-score"
+    },
+    "dcf": {
+      "revenue_growth_assumption": 0.12,
+      "margin_assumption": 0.25,
+      "discount_rate": 0.10,
+      "terminal_multiple": 20,
+      "base_case_price": 175.00,
+      "bull_case_price": 220.00,
+      "bear_case_price": 140.00,
+      "upside_downside": 0.15,
+      "dcf_note": "One sentence explaining the key assumption driving the valuation"
+    },
+    "sensitivity": {
+      "scenarios": [
+        {"assumption": "Revenue growth -2%", "price_impact": -18.00, "new_price": 157.00},
+        {"assumption": "Margins compress 200bps", "price_impact": -12.00, "new_price": 163.00},
+        {"assumption": "Discount rate +1%", "price_impact": -15.00, "new_price": 160.00},
+        {"assumption": "Revenue growth +2%", "price_impact": 20.00, "new_price": 195.00},
+        {"assumption": "Multiple expansion 2x", "price_impact": 22.00, "new_price": 197.00}
+      ]
+    },
+    "analyst_summary": "2-3 sentence professional summary",
+    "plain_english": "2-3 sentence plain English explanation for first-time investors",
+    "reward_factors": [
+      {"name": "Factor name", "score": 8, "detail": "One sentence explanation"},
+      {"name": "Factor name", "score": 7, "detail": "One sentence explanation"},
+      {"name": "Factor name", "score": 6, "detail": "One sentence explanation"}
+    ],
+    "risk_factors": [
+      {"name": "Risk name", "score": 7, "detail": "One sentence explanation"},
+      {"name": "Risk name", "score": 6, "detail": "One sentence explanation"},
+      {"name": "Risk name", "score": 5, "detail": "One sentence explanation"}
+    ],
+    "valuation_take": "2 sentences on whether stock is cheap, fairly valued, or expensive",
+    "macro_sensitivity": "1 sentence on how interest rates affect this stock",
+    "what_could_go_wrong": "2 sentences on the biggest bear case, be specific",
+    "what_drives_stock": "2 sentences on the 1-2 key metrics or catalysts that will drive this stock up or down over the next 12 months",
+    "macro_context": {
+      "rate_sensitivity": "HIGH",
+      "rate_impact": "NEGATIVE",
+      "rate_note": "Short note on rate sensitivity"
+    }
+  }
 }`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -778,7 +825,7 @@ Return ONLY valid JSON, no markdown, no explanation:
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 600,
+        max_tokens: 2500,
         messages: [{ role: 'user', content: prompt }]
       })
     });
@@ -790,85 +837,10 @@ Return ONLY valid JSON, no markdown, no explanation:
 
     const result = await response.json();
     const text = result.content[0].text.replace(/```json|```/g, '').trim();
-    const data = JSON.parse(text);
+    const parsed = JSON.parse(text);
 
-    if (!data.valid) throw new Error(`Ticker "${ticker}" not found. Please check and try again.`);
-    return data;
-  }
-
-  async function generateAnalysis(ticker, data) {
-    const prompt = `You are a senior equity research analyst. Analyze the following stock data for ${ticker} (${data.name}) and produce a structured JSON analysis report. Be direct, data-driven, and honest about both upside and downside.
-
-STOCK DATA:
-- Company: ${data.name}
-- Sector: ${data.sector} / ${data.industry}
-- Current Price: $${data.currentPrice?.toFixed(2)}
-- 1-Day Change: ${(data.change1d * 100)?.toFixed(2)}%
-- Market Cap: $${formatLargeNumber(data.marketCap)}
-- P/E Ratio (TTM): ${data.peRatio?.toFixed(1) || 'N/A'}
-- Forward P/E: ${data.forwardPE?.toFixed(1) || 'N/A'}
-- Price/Book: ${data.pbRatio?.toFixed(2) || 'N/A'}
-- Price/Sales: ${data.psRatio?.toFixed(2) || 'N/A'}
-- Beta: ${data.beta?.toFixed(2) || 'N/A'}
-- Revenue Growth (YoY): ${data.revenueGrowth ? (data.revenueGrowth * 100).toFixed(1) + '%' : 'N/A'}
-- Earnings Growth (YoY): ${data.earningsGrowth ? (data.earningsGrowth * 100).toFixed(1) + '%' : 'N/A'}
-- Profit Margin: ${data.profitMargins ? (data.profitMargins * 100).toFixed(1) + '%' : 'N/A'}
-- Return on Equity: ${data.returnOnEquity ? (data.returnOnEquity * 100).toFixed(1) + '%' : 'N/A'}
-- Debt/Equity: ${data.debtToEquity?.toFixed(2) || 'N/A'}
-- Analyst Target Price: $${data.targetMeanPrice?.toFixed(2) || 'N/A'}
-- Analyst Recommendation: ${data.recommendationKey || 'N/A'}
-- 52-Week Range: $${data.fiftyTwoWeekLow?.toFixed(2)} - $${data.fiftyTwoWeekHigh?.toFixed(2)}
-- Business: ${data.description?.substring(0, 400)}
-
-Return ONLY valid JSON with this exact structure (no markdown, no explanation):
-{
-  "conviction_score": <integer 1-10>,
-  "verdict": <"STRONG BUY" | "BUY" | "HOLD" | "SELL" | "STRONG SELL">,
-  "analyst_summary": <2-3 sentence professional summary>,
-  "plain_english": <2-3 sentence explanation a first-time investor would understand, starting with what the company does, then whether it's a good deal>,
-  "reward_factors": [
-    {"name": <string>, "score": <1-10>, "detail": <one sentence>},
-    {"name": <string>, "score": <1-10>, "detail": <one sentence>},
-    {"name": <string>, "score": <1-10>, "detail": <one sentence>}
-  ],
-  "risk_factors": [
-    {"name": <string>, "score": <1-10, where 10 = highest risk>, "detail": <one sentence>},
-    {"name": <string>, "score": <1-10>, "detail": <one sentence>},
-    {"name": <string>, "score": <1-10>, "detail": <one sentence>}
-  ],
-  "valuation_take": <2 sentences on whether the stock is cheap, fairly valued, or expensive>,
-  "macro_sensitivity": <1 sentence on how interest rates / macro environment affects this stock>,
-  "what_could_go_wrong": <2 sentences on the biggest bear case, be specific>,
-  "macro_context": {
-    "rate_sensitivity": <"HIGH" | "MEDIUM" | "LOW">,
-    "rate_impact": <"POSITIVE" | "NEGATIVE" | "NEUTRAL">,
-    "rate_note": <short note on rate sensitivity>
-  }
-}`;
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1200,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error('AI analysis failed: ' + (err.error?.message || 'Unknown error'));
-    }
-
-    const result = await response.json();
-    const text = result.content[0].text.replace(/```json|```/g, '').trim();
-    return JSON.parse(text);
+    if (!parsed.stockData?.valid) throw new Error(`Ticker "${ticker}" not found. Please check and try again.`);
+    return { stockData: parsed.stockData, analysis: parsed.analysis };
   }
 
   function formatLargeNumber(n) {
@@ -889,6 +861,10 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     const results = document.getElementById('results');
     results.style.display = 'block';
 
+    const cm = ai.conviction_model;
+    const dcf = ai.dcf;
+    const sens = ai.sensitivity;
+
     // Header
     document.getElementById('res-ticker').textContent = ticker;
     document.getElementById('res-name').textContent = data.name;
@@ -896,12 +872,11 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
     // Conviction
     const convEl = document.getElementById('res-conviction');
-    convEl.textContent = ai.conviction_score + '/10';
+    convEl.textContent = cm.conviction_score + '/10';
     convEl.className = 'conviction-score';
-    if (ai.conviction_score >= 7) convEl.classList.add(''); // green default
-    else if (ai.conviction_score >= 5) convEl.classList.add('medium');
-    else convEl.classList.add('low');
-    document.getElementById('res-verdict').textContent = ai.verdict;
+    if (cm.conviction_score < 5) convEl.classList.add('low');
+    else if (cm.conviction_score < 7) convEl.classList.add('medium');
+    document.getElementById('res-verdict').textContent = cm.verdict;
 
     // Metrics bar
     const metrics = [
@@ -948,17 +923,45 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     const grid = document.getElementById('analysis-grid');
     grid.innerHTML = '';
 
-    // Reward card
+    // ── CONVICTION MODEL BREAKDOWN (full width) ──
+    const convWeights = [
+      { label: 'Valuation', weight: '30%', score: cm.valuation_score, note: cm.valuation_note, color: '#c8f04a' },
+      { label: 'Quality', weight: '25%', score: cm.quality_score, note: cm.quality_note, color: '#4af0c8' },
+      { label: 'Growth', weight: '20%', score: cm.growth_score, note: cm.growth_note, color: '#f0c84a' },
+      { label: 'Risk', weight: '15%', score: cm.risk_score, note: cm.risk_note, color: '#f04a6e' },
+      { label: 'Macro', weight: '10%', score: cm.macro_score, note: cm.macro_note, color: '#a04af0' },
+    ];
+    const convCard = document.createElement('div');
+    convCard.className = 'analysis-card';
+    convCard.style.gridColumn = '1 / -1';
+    convCard.innerHTML = `
+      <div class="card-label">Conviction Model Breakdown</div>
+      <div style="font-size:0.78rem;color:var(--muted);margin-bottom:20px;font-weight:300">
+        Score = (Valuation × 30%) + (Quality × 25%) + (Growth × 20%) + (Risk × 15%) + (Macro × 10%)
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;">
+        ${convWeights.map(w => `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:${w.color};letter-spacing:0.1em;text-transform:uppercase">${w.label}</span>
+              <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted)">${w.weight}</span>
+            </div>
+            <div style="font-family:'Playfair Display',serif;font-size:2rem;font-weight:700;color:${w.color};line-height:1">${w.score}<span style="font-size:1rem;color:var(--muted)">/10</span></div>
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:8px;line-height:1.5;font-weight:300">${w.note}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    grid.appendChild(convCard);
+
+    // ── REWARD / RISK cards ──
     const rewardCard = document.createElement('div');
     rewardCard.className = 'analysis-card';
     rewardCard.innerHTML = `
       <div class="card-label">Reward Factors</div>
       ${ai.reward_factors.map(f => `
         <div class="rr-item">
-          <div class="rr-header">
-            <span class="rr-name">${f.name}</span>
-            <span class="rr-score">${f.score}/10</span>
-          </div>
+          <div class="rr-header"><span class="rr-name">${f.name}</span><span class="rr-score">${f.score}/10</span></div>
           <div class="rr-bar-bg"><div class="rr-bar-fill fill-reward" style="width:0%" data-width="${f.score * 10}%"></div></div>
           <div style="font-size:0.78rem;color:var(--muted);margin-top:6px;font-weight:300">${f.detail}</div>
         </div>
@@ -966,17 +969,13 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     `;
     grid.appendChild(rewardCard);
 
-    // Risk card
     const riskCard = document.createElement('div');
     riskCard.className = 'analysis-card';
     riskCard.innerHTML = `
       <div class="card-label danger">Risk Factors</div>
       ${ai.risk_factors.map(f => `
         <div class="rr-item">
-          <div class="rr-header">
-            <span class="rr-name">${f.name}</span>
-            <span class="rr-score">${f.score}/10</span>
-          </div>
+          <div class="rr-header"><span class="rr-name">${f.name}</span><span class="rr-score">${f.score}/10</span></div>
           <div class="rr-bar-bg"><div class="rr-bar-fill fill-risk" style="width:0%" data-width="${f.score * 10}%"></div></div>
           <div style="font-size:0.78rem;color:var(--muted);margin-top:6px;font-weight:300">${f.detail}</div>
         </div>
@@ -984,20 +983,98 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     `;
     grid.appendChild(riskCard);
 
-    // Valuation card
-    const valCard = document.createElement('div');
-    valCard.className = 'analysis-card';
-    valCard.innerHTML = `
-      <div class="card-label gold">Valuation Analysis</div>
-      <div class="card-content">${ai.valuation_take}</div>
+    // ── DCF VALUATION MODEL ──
+    const upside = dcf.upside_downside;
+    const upsideColor = upside >= 0 ? '#c8f04a' : '#f04a6e';
+    const dcfCard = document.createElement('div');
+    dcfCard.className = 'analysis-card';
+    dcfCard.style.gridColumn = '1 / -1';
+    dcfCard.innerHTML = `
+      <div class="card-label gold">DCF Valuation Model</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+        <div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:16px;font-weight:300">${dcf.dcf_note}</div>
+          <div style="display:grid;gap:8px;">
+            ${[
+              ['Revenue Growth Assumption', pct(dcf.revenue_growth_assumption)],
+              ['Margin Assumption', pct(dcf.margin_assumption)],
+              ['Discount Rate (WACC)', pct(dcf.discount_rate)],
+              ['Terminal Multiple', dcf.terminal_multiple + 'x'],
+            ].map(([k,v]) => `
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+                <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted)">${k}</span>
+                <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--text)">${v}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:16px;">Price Targets</div>
+          <div style="display:grid;gap:10px;">
+            <div style="background:rgba(200,240,74,0.08);border:1px solid rgba(200,240,74,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#c8f04a">BULL CASE</span>
+              <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#c8f04a">$${dcf.bull_case_price.toFixed(0)}</span>
+            </div>
+            <div style="background:rgba(240,200,74,0.08);border:1px solid rgba(240,200,74,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#f0c84a">BASE CASE</span>
+              <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#f0c84a">$${dcf.base_case_price.toFixed(0)}</span>
+            </div>
+            <div style="background:rgba(240,74,110,0.08);border:1px solid rgba(240,74,110,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#f04a6e">BEAR CASE</span>
+              <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#f04a6e">$${dcf.bear_case_price.toFixed(0)}</span>
+            </div>
+            <div style="text-align:center;margin-top:4px;">
+              <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted)">Base case implies </span>
+              <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:${upsideColor};font-weight:500">${upside >= 0 ? '+' : ''}${(upside * 100).toFixed(1)}% ${upside >= 0 ? 'upside' : 'downside'}</span>
+              <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted)"> from current price</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    grid.appendChild(dcfCard);
+
+    // ── SENSITIVITY TABLE ──
+    const sensCard = document.createElement('div');
+    sensCard.className = 'analysis-card';
+    sensCard.innerHTML = `
+      <div class="card-label teal">Sensitivity Analysis — Stress Testing Assumptions</div>
+      <div style="font-size:0.78rem;color:var(--muted);margin-bottom:16px;font-weight:300">How would different scenarios affect the base case price target of $${dcf.base_case_price.toFixed(0)}?</div>
+      <div style="display:grid;gap:8px;">
+        <div style="display:grid;grid-template-columns:1fr auto auto;gap:16px;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase">Assumption Change</span>
+          <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;text-align:right">Impact</span>
+          <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;text-align:right">New Target</span>
+        </div>
+        ${sens.scenarios.map(s => {
+          const pos = s.price_impact >= 0;
+          const color = pos ? '#c8f04a' : '#f04a6e';
+          return `
+            <div style="display:grid;grid-template-columns:1fr auto auto;gap:16px;padding:10px 0;border-bottom:1px solid rgba(42,42,61,0.5);align-items:center;">
+              <span style="font-size:0.85rem;color:var(--text)">${s.assumption}</span>
+              <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:${color};text-align:right">${pos ? '+' : ''}$${s.price_impact.toFixed(0)}</span>
+              <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--text);text-align:right">$${s.new_price.toFixed(0)}</span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+    grid.appendChild(sensCard);
+
+    // ── WHAT DRIVES THE STOCK ──
+    const driversCard = document.createElement('div');
+    driversCard.className = 'analysis-card';
+    driversCard.innerHTML = `
+      <div class="card-label gold">What Drives This Stock?</div>
+      <div class="card-content">${ai.what_drives_stock}</div>
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
         <div class="card-label" style="font-size:0.6rem;color:var(--muted);margin-bottom:8px">BEAR CASE — WHAT COULD GO WRONG</div>
         <div class="card-content" style="color:#aa8888">${ai.what_could_go_wrong}</div>
       </div>
     `;
-    grid.appendChild(valCard);
+    grid.appendChild(driversCard);
 
-    // Analyst summary
+    // ── ANALYST SUMMARY ──
     const summaryCard = document.createElement('div');
     summaryCard.className = 'analysis-card';
     summaryCard.innerHTML = `
@@ -1010,7 +1087,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     `;
     grid.appendChild(summaryCard);
 
-    // Plain English (full width)
+    // ── PLAIN ENGLISH (full width) ──
     const peCard = document.createElement('div');
     peCard.className = 'plain-english';
     peCard.innerHTML = `
@@ -1019,7 +1096,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     `;
     grid.appendChild(peCard);
 
-    // Animate bars after render
+    // Animate bars
     setTimeout(() => {
       document.querySelectorAll('.rr-bar-fill').forEach(bar => {
         bar.style.width = bar.dataset.width;
