@@ -83,13 +83,37 @@
   }
   .logo span { color: var(--accent); }
 
-  .nav-tag {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--muted);
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
+  .nav-tabs {
+    display: flex;
+    gap: 4px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px;
   }
+  .nav-tab {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 7px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active {
+    background: var(--accent);
+    color: #0a0a0f;
+    font-weight: 500;
+  }
+
+  /* Page sections */
+  .page { display: none; }
+  .page.active { display: block; }
 
   /* Hero */
   .hero {
@@ -704,18 +728,74 @@
 
   /* PDF print styles */
   @media print {
-    @page { margin: 0; size: letter; }
+    @page { margin: 0; size: 8.5in 11in; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     body > *:not(#pdf-report) { display: none !important; }
     #pdf-report {
       display: block !important;
       position: static !important;
-      width: 100% !important;
-      height: auto !important;
-      overflow: visible !important;
+      width: 816px !important;
+      height: 1056px !important;
+      overflow: hidden !important;
       background: white !important;
     }
   }
+  /* Portfolio rows */
+  .portfolio-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .remove-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 32px;
+    height: 32px;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .remove-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* Portfolio results */
+  .portfolio-score-block {
+    display: flex;
+    align-items: center;
+    gap: 48px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 32px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .portfolio-grade {
+    font-family: 'Playfair Display', serif;
+    font-size: 5rem;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--accent);
+  }
+  .portfolio-grade.medium { color: var(--gold); }
+  .portfolio-grade.low { color: var(--danger); }
+  .holding-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 10px;
+    transition: border-color 0.2s;
+  }
+  .holding-card:hover { border-color: rgba(200,240,74,0.3); }
+  .holding-card.weak { border-left: 3px solid var(--danger); }
+  .holding-card.strong { border-left: 3px solid var(--accent); }
 </style>
 </head>
 <body>
@@ -750,12 +830,15 @@
 
 <nav>
   <div class="logo">Clarity<span>.</span></div>
-  <div style="display:flex;align-items:center;gap:16px;">
-    <button onclick="document.getElementById('api-setup').style.display='flex'" style="font-family:'DM Mono',monospace;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:2px;cursor:pointer;">⚙ API Key</button>
-    <div class="nav-tag">Equity Research — Democratized</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('analyze')" id="tab-analyze">Stock Analysis</button>
+    <button class="nav-tab" onclick="switchTab('portfolio')" id="tab-portfolio">Portfolio</button>
+    <button class="nav-tab" onclick="switchTab('about')" id="tab-about">About</button>
   </div>
+  <button onclick="document.getElementById('api-setup').style.display='flex'" style="font-family:'DM Mono',monospace;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:2px;cursor:pointer;">⚙ API Key</button>
 </nav>
 
+<div id="page-analyze" class="page active">
 <section class="hero">
   <div class="hero-eyebrow">AI-Powered Stock Analysis</div>
   <h1>Wall Street research.<br><em>For everyone.</em></h1>
@@ -829,9 +912,344 @@
 <div class="disclaimer">
   Clarity is an educational tool built for learning purposes. Not financial advice. Always do your own research before investing.
 </div>
+</div><!-- end page-analyze -->
+
+<!-- ── PORTFOLIO PAGE ── -->
+<div id="page-portfolio" class="page">
+  <section class="hero" style="padding-bottom:40px;">
+    <div class="hero-eyebrow">Portfolio Analyzer</div>
+    <h1>Your portfolio.<br><em>Analyzed.</em></h1>
+    <p class="hero-sub">Enter your holdings below. The AI will score your overall portfolio, flag your weakest positions, and suggest specific moves to improve it.</p>
+
+    <div id="portfolio-holdings" style="max-width:600px;margin-bottom:16px;">
+      <div class="portfolio-row" id="holding-0">
+        <div class="search-wrapper" style="flex:1;">
+          <div class="ticker-label">Ticker</div>
+          <div class="search-container">
+            <input type="text" class="holding-ticker" placeholder="e.g. AAPL" maxlength="10" autocomplete="off" style="width:100%;background:transparent;border:none;outline:none;padding:14px 16px;font-family:'DM Mono',monospace;font-size:1rem;color:var(--text);text-transform:uppercase;letter-spacing:0.08em;" />
+          </div>
+        </div>
+        <div class="search-wrapper" style="width:140px;">
+          <div class="ticker-label">Shares</div>
+          <input type="number" class="holding-shares" placeholder="0" min="0" style="flex:1;width:80px;background:transparent;border:none;outline:none;padding:14px 12px;font-family:'DM Mono',monospace;font-size:1rem;color:var(--text);" />
+        </div>
+        <button onclick="removeHolding(0)" class="remove-btn" style="visibility:hidden;">✕</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;max-width:600px;margin-bottom:32px;">
+      <button onclick="addHolding()" class="quick-chip" style="border-color:var(--accent);color:var(--accent);">+ Add Stock</button>
+      <button onclick="runPortfolioAnalysis()" class="analyze-btn" style="border-radius:4px;padding:10px 24px;">Analyze Portfolio →</button>
+    </div>
+    <div class="error-msg" id="portfolio-error"></div>
+  </section>
+
+  <!-- Portfolio Loading -->
+  <div class="loading" id="portfolio-loading">
+    <div class="loading-ring"></div>
+    <div class="loading-text">Analyzing your portfolio</div>
+    <div class="loading-steps" id="portfolio-loading-step">Fetching data for all holdings...</div>
+  </div>
+
+  <!-- Portfolio Results -->
+  <div id="portfolio-results" style="display:none;position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:0 48px 80px;">
+    <div class="divider"></div>
+    <div id="portfolio-content"></div>
+  </div>
+</div><!-- end page-portfolio -->
+
+<!-- ── ABOUT PAGE ── -->
+<div id="page-about" class="page">
+  <section class="hero" style="max-width:800px;padding-bottom:80px;">
+    <div class="hero-eyebrow">About Clarity</div>
+    <h1>Built from<br><em>personal experience.</em></h1>
+
+    <div style="max-width:640px;margin-top:40px;">
+      <div style="font-size:1.05rem;color:#b8b8cc;line-height:1.85;font-weight:300;margin-bottom:32px;">
+        Growing up, money was a source of stress in my household — not because there wasn't enough, but because there was never enough <em style="color:var(--text)">clarity</em>. My parents made financial decisions without access to good information, without the tools that Wall Street takes for granted.
+      </div>
+      <div style="font-size:1.05rem;color:#b8b8cc;line-height:1.85;font-weight:300;margin-bottom:32px;">
+        I built Clarity because I believe the same quality of equity research that hedge funds pay thousands of dollars for should be accessible to everyone. Not watered down. Not oversimplified. The real thing — in plain English.
+      </div>
+      <div style="font-size:1.05rem;color:#b8b8cc;line-height:1.85;font-weight:300;margin-bottom:48px;">
+        I'm a freshman studying Economics at Indiana University, with a minor in Business at the Kelley School of Business. I'm fascinated by markets, technology, and where the two intersect. Clarity is my attempt to put those interests to work on a real problem.
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:40px;">
+        <div class="hero-eyebrow" style="margin-bottom:24px;">What Clarity Does</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          ${[
+            ['Stock Analysis','Enter any ticker and get an AI-generated analyst report — valuation, reward vs. risk, macro context, and a plain English summary.'],
+            ['Portfolio Analysis','Add your full portfolio and let the AI score it, identify weak spots, and suggest specific moves to improve your risk-reward profile.'],
+            ['Conviction Scoring','Every report includes a 1–10 conviction score built from five weighted factors: valuation, quality, growth, risk, and macro sensitivity.'],
+            ['Professional PDF Export','Export any report as a clean, one-page PDF formatted like a real Goldman Sachs or Morgan Stanley research note.'],
+          ].map(([title, desc]) => `
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px;">
+              <div style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;">${title}</div>
+              <div style="font-size:0.88rem;color:#8888aa;line-height:1.65;font-weight:300;">${desc}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:40px;margin-top:40px;">
+        <div class="hero-eyebrow" style="margin-bottom:16px;">Connect</div>
+        <div style="font-size:0.9rem;color:var(--muted);font-family:'DM Mono',monospace;">
+          <a href="https://github.com/tyjwhite42" target="_blank" style="color:var(--accent);text-decoration:none;">github.com/tyjwhite42</a>
+          <span style="margin:0 12px;color:var(--border)">·</span>
+          Indiana University — Class of 2028
+        </div>
+      </div>
+    </div>
+  </section>
+</div><!-- end page-about -->
+
+
 
 <script>
   let ANTHROPIC_API_KEY = localStorage.getItem('clarity_api_key') || '';
+
+  // ── TAB SWITCHING ──
+  function switchTab(tab) {
+    ['analyze','portfolio','about'].forEach(t => {
+      document.getElementById('page-'+t).classList.toggle('active', t === tab);
+      document.getElementById('tab-'+t).classList.toggle('active', t === tab);
+    });
+    window.scrollTo(0, 0);
+  }
+
+  // ── PORTFOLIO HOLDINGS MANAGER ──
+  let holdingCount = 1;
+  function addHolding() {
+    const container = document.getElementById('portfolio-holdings');
+    const idx = holdingCount++;
+    const row = document.createElement('div');
+    row.className = 'portfolio-row';
+    row.id = 'holding-'+idx;
+    row.innerHTML = `
+      <div class="search-wrapper" style="flex:1;">
+        <div class="ticker-label">Ticker</div>
+        <div class="search-container">
+          <input type="text" class="holding-ticker" placeholder="e.g. MSFT" maxlength="10" autocomplete="off" style="width:100%;background:transparent;border:none;outline:none;padding:14px 16px;font-family:'DM Mono',monospace;font-size:1rem;color:var(--text);text-transform:uppercase;letter-spacing:0.08em;" />
+        </div>
+      </div>
+      <div class="search-wrapper" style="width:140px;">
+        <div class="ticker-label">Shares</div>
+        <input type="number" class="holding-shares" placeholder="0" min="0" style="flex:1;width:80px;background:transparent;border:none;outline:none;padding:14px 12px;font-family:'DM Mono',monospace;font-size:1rem;color:var(--text);" />
+      </div>
+      <button onclick="removeHolding(${idx})" class="remove-btn">✕</button>
+    `;
+    container.appendChild(row);
+  }
+
+  function removeHolding(idx) {
+    const row = document.getElementById('holding-'+idx);
+    if (row) row.remove();
+  }
+
+  // ── PORTFOLIO ANALYSIS ──
+  async function runPortfolioAnalysis() {
+    const rows = document.querySelectorAll('.portfolio-row');
+    const holdings = [];
+    rows.forEach(row => {
+      const ticker = row.querySelector('.holding-ticker').value.trim().toUpperCase();
+      const shares = parseFloat(row.querySelector('.holding-shares').value) || 0;
+      if (ticker) holdings.push({ ticker, shares });
+    });
+
+    const errEl = document.getElementById('portfolio-error');
+    if (holdings.length < 2) {
+      errEl.textContent = 'Please enter at least 2 stocks to analyze a portfolio.';
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+
+    document.getElementById('portfolio-results').style.display = 'none';
+    document.getElementById('portfolio-loading').style.display = 'block';
+
+    try {
+      document.getElementById('portfolio-loading-step').textContent = `Fetching data for ${holdings.length} holdings...`;
+      const stockDataArr = await Promise.all(holdings.map(h => fetchStockData(h.ticker).catch(() => null)));
+
+      document.getElementById('portfolio-loading-step').textContent = 'Running AI portfolio analysis...';
+      const validHoldings = holdings.map((h, i) => ({ ...h, data: stockDataArr[i] })).filter(h => h.data);
+
+      const portfolioAnalysis = await generatePortfolioAnalysis(validHoldings);
+
+      document.getElementById('portfolio-loading').style.display = 'none';
+      renderPortfolioResults(validHoldings, portfolioAnalysis);
+
+    } catch(err) {
+      document.getElementById('portfolio-loading').style.display = 'none';
+      errEl.textContent = err.message || 'Something went wrong. Please try again.';
+      errEl.style.display = 'block';
+    }
+  }
+
+  async function generatePortfolioAnalysis(holdings) {
+    const holdingSummaries = holdings.map(h => {
+      const d = h.data;
+      return `${h.ticker} (${d.name}): ${h.shares} shares @ $${d.currentPrice?.toFixed(2)} = $${(h.shares * d.currentPrice).toFixed(0)} | Sector: ${d.sector} | P/E: ${d.peRatio?.toFixed(1)||'N/A'} | Beta: ${d.beta?.toFixed(2)||'N/A'} | Rev Growth: ${d.revenueGrowth?(d.revenueGrowth*100).toFixed(1)+'%':'N/A'} | Margin: ${d.profitMargins?(d.profitMargins*100).toFixed(1)+'%':'N/A'}`;
+    }).join('\n');
+
+    const totalValue = holdings.reduce((sum, h) => sum + (h.shares * (h.data.currentPrice||0)), 0);
+
+    const prompt = `You are a senior portfolio manager. Analyze this investment portfolio and return ONLY valid JSON with no markdown.
+
+PORTFOLIO (Total Value: $${totalValue.toFixed(0)}):
+${holdingSummaries}
+
+Return this exact JSON structure:
+{
+  "portfolio_score": <integer 1-10>,
+  "portfolio_grade": <"A" | "B" | "C" | "D">,
+  "overall_verdict": <one sentence overall assessment>,
+  "diversification_score": <1-10>,
+  "risk_level": <"LOW" | "MODERATE" | "HIGH" | "VERY HIGH">,
+  "summary": <2-3 sentence professional portfolio summary>,
+  "sector_concentration": <one sentence on sector exposure and concentration risk>,
+  "macro_exposure": <one sentence on how this portfolio is positioned relative to current macro environment>,
+  "holdings_analysis": [
+    {
+      "ticker": <ticker>,
+      "role": <"Core Hold" | "Strong Performer" | "Weak Link" | "Trim Candidate" | "Watch Closely">,
+      "weight_pct": <percentage of portfolio this holding represents>,
+      "score": <1-10>,
+      "one_line": <one sentence assessment of this specific holding in the context of the portfolio>
+    }
+  ],
+  "weak_links": [<ticker of weakest holding>, <ticker of second weakest if applicable>],
+  "next_moves": [
+    {"action": <"BUY" | "SELL" | "TRIM" | "HOLD" | "ADD">, "ticker": <ticker or "NEW POSITION">, "reason": <one sentence specific actionable rationale>},
+    {"action": <...>, "ticker": <...>, "reason": <...>},
+    {"action": <...>, "ticker": <...>, "reason": <...>}
+  ],
+  "plain_english": <2 sentence plain English summary of what this portfolio is and whether it is well constructed>
+}`;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!response.ok) throw new Error('AI analysis failed.');
+    const result = await response.json();
+    const text = result.content[0].text.replace(/```json|```/g, '').trim();
+    return JSON.parse(text);
+  }
+
+  function renderPortfolioResults(holdings, ai) {
+    const totalValue = holdings.reduce((sum, h) => sum + (h.shares * (h.data.currentPrice||0)), 0);
+    const content = document.getElementById('portfolio-content');
+
+    const gradeClass = ai.portfolio_score >= 7 ? '' : ai.portfolio_score >= 5 ? 'medium' : 'low';
+    const riskColor = ai.risk_level === 'LOW' ? 'var(--accent)' : ai.risk_level === 'MODERATE' ? 'var(--gold)' : 'var(--danger)';
+
+    content.innerHTML = `
+      <!-- Score block -->
+      <div class="portfolio-score-block">
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px;">Portfolio Score</div>
+          <div class="portfolio-grade ${gradeClass}">${ai.portfolio_score}<span style="font-size:2rem;color:var(--muted)">/10</span></div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.72rem;color:var(--muted);margin-top:6px;letter-spacing:0.1em;">${ai.portfolio_grade} · ${ai.overall_verdict}</div>
+        </div>
+        <div style="flex:1;min-width:200px;">
+          <div style="font-size:0.92rem;color:#b8b8cc;line-height:1.75;font-weight:300;">${ai.summary}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;flex-shrink:0;">
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">Total Value</div>
+            <div style="font-family:'DM Mono',monospace;font-size:1.4rem;font-weight:500;color:var(--text);">$${formatLargeNumber(totalValue)}</div>
+          </div>
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">Risk Level</div>
+            <div style="font-family:'DM Mono',monospace;font-size:1rem;font-weight:500;color:${riskColor};">${ai.risk_level}</div>
+          </div>
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">Diversification</div>
+            <div style="font-family:'DM Mono',monospace;font-size:1rem;font-weight:500;color:var(--text);">${ai.diversification_score}/10</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Two col: macro + plain english -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+        <div class="analysis-card" style="opacity:1;animation:none;">
+          <div class="card-label teal">Macro Positioning</div>
+          <div class="card-content">${ai.macro_exposure}</div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+            <div style="font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px;">Sector Concentration</div>
+            <div class="card-content">${ai.sector_concentration}</div>
+          </div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--accent);border-radius:4px;padding:28px;">
+          <div class="card-label">Plain English</div>
+          <div class="pe-quote" style="margin-top:0;">${ai.plain_english}</div>
+        </div>
+      </div>
+
+      <!-- Next moves -->
+      <div class="analysis-card" style="opacity:1;animation:none;margin-bottom:24px;">
+        <div class="card-label gold">AI Recommended Next Moves</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          ${ai.next_moves.map(m => {
+            const actionColor = m.action==='BUY'||m.action==='ADD' ? 'var(--accent)' : m.action==='SELL'||m.action==='TRIM' ? 'var(--danger)' : 'var(--gold)';
+            return `
+            <div style="display:flex;align-items:flex-start;gap:16px;padding:14px;background:var(--surface2);border-radius:4px;">
+              <div style="font-family:'DM Mono',monospace;font-size:0.72rem;font-weight:500;color:${actionColor};letter-spacing:0.1em;min-width:48px;padding-top:1px;">${m.action}</div>
+              <div>
+                <div style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--text);margin-bottom:4px;">${m.ticker}</div>
+                <div style="font-size:0.85rem;color:#8888aa;font-weight:300;line-height:1.6;">${m.reason}</div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Holdings breakdown -->
+      <div class="card-label" style="margin-bottom:16px;">Holdings Breakdown</div>
+      ${holdings.map(h => {
+        const ha = ai.holdings_analysis.find(x => x.ticker === h.ticker) || {};
+        const isWeak = ai.weak_links.includes(h.ticker);
+        const val = h.shares * (h.data.currentPrice||0);
+        const roleColor = ha.role==='Strong Performer' ? 'var(--accent)' : ha.role==='Weak Link'||ha.role==='Trim Candidate' ? 'var(--danger)' : 'var(--gold)';
+        return `
+        <div class="holding-card ${isWeak?'weak':ha.score>=7?'strong':''}">
+          <div style="min-width:60px;">
+            <div style="font-family:'DM Mono',monospace;font-size:0.72rem;color:var(--accent);letter-spacing:0.1em;">${h.ticker}</div>
+            <div style="font-size:0.78rem;color:var(--muted);margin-top:2px;">${h.shares} shares</div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:0.9rem;color:var(--text);font-weight:500;margin-bottom:4px;">${h.data.name}</div>
+            <div style="font-size:0.8rem;color:#8888aa;font-weight:300;">${ha.one_line||''}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--text);">$${formatLargeNumber(val)}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);margin-top:2px;">${ha.weight_pct||''}%</div>
+            <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:${roleColor};margin-top:4px;letter-spacing:0.08em;">${ha.role||''}</div>
+          </div>
+          <div style="font-family:'Playfair Display',serif;font-size:1.8rem;font-weight:700;color:${(ha.score||5)>=7?'var(--accent)':(ha.score||5)>=5?'var(--gold)':'var(--danger)'};min-width:48px;text-align:right;">
+            ${ha.score||'?'}<span style="font-size:0.9rem;color:var(--muted)">/10</span>
+          </div>
+        </div>`;
+      }).join('')}
+    `;
+
+    document.getElementById('portfolio-results').style.display = 'block';
+    document.getElementById('portfolio-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
 
   // ── TICKER AUTOCOMPLETE DATABASE ──
   const TICKERS = [
@@ -1580,7 +1998,8 @@ Return ONLY this exact JSON, no markdown, no explanation:
     pdfBlock.style.cssText = 'display:none;position:absolute;top:-99999px;left:0;width:0;height:0;overflow:hidden;';
 
     pdfBlock.innerHTML = `
-    <div style="font-family:'Times New Roman',Georgia,serif;color:#111;background:white;width:100%;max-width:780px;margin:0 auto;padding:40px 48px;font-size:10.5px;line-height:1.5;">
+    <div style="width:816px;height:1056px;overflow:hidden;background:white;position:relative;">
+    <div style="transform:scale(0.72);transform-origin:top left;width:1133px;font-family:'Times New Roman',Georgia,serif;color:#111;background:white;padding:36px 44px;font-size:10.5px;line-height:1.4;">
 
       <!-- HEADER BAR -->
       <div style="background:#0a1628;color:white;padding:14px 20px;margin:-40px -48px 28px -48px;display:flex;justify-content:space-between;align-items:center;">
@@ -1614,7 +2033,7 @@ Return ONLY this exact JSON, no markdown, no explanation:
       </div>
 
       <!-- SECTION: KEY METRICS -->
-      <div style="margin-bottom:20px;">
+      <div style="margin-bottom:12px;">
         <div style="font-size:7.5px;letter-spacing:0.2em;text-transform:uppercase;color:#0a1628;font-family:'Courier New',monospace;border-bottom:1px solid #0a1628;padding-bottom:4px;margin-bottom:10px;font-weight:700;">KEY METRICS</div>
         <table style="width:100%;border-collapse:collapse;font-size:9.5px;">
           <tr style="background:#0a1628;color:white;">
@@ -1641,7 +2060,7 @@ Return ONLY this exact JSON, no markdown, no explanation:
       </div>
 
       <!-- SECTION: VALUATION -->
-      <div style="margin-bottom:20px;">
+      <div style="margin-bottom:12px;">
         <div style="font-size:7.5px;letter-spacing:0.2em;text-transform:uppercase;color:#0a1628;font-family:'Courier New',monospace;border-bottom:1px solid #0a1628;padding-bottom:4px;margin-bottom:10px;font-weight:700;">VALUATION ANALYSIS</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#ddd;border:1px solid #ddd;margin-bottom:10px;">
           <div style="background:#f0fff4;padding:10px;text-align:center;">
@@ -1664,7 +2083,7 @@ Return ONLY this exact JSON, no markdown, no explanation:
       </div>
 
       <!-- SECTION: REWARD vs RISK -->
-      <div style="margin-bottom:20px;">
+      <div style="margin-bottom:12px;">
         <div style="font-size:7.5px;letter-spacing:0.2em;text-transform:uppercase;color:#0a1628;font-family:'Courier New',monospace;border-bottom:1px solid #0a1628;padding-bottom:4px;margin-bottom:10px;font-weight:700;">REWARD VS. RISK</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
           <div>
@@ -1724,7 +2143,7 @@ Return ONLY this exact JSON, no markdown, no explanation:
       </div>
 
       <!-- SECTION: PLAIN ENGLISH -->
-      <div style="margin-bottom:24px;">
+      <div style="margin-bottom:12px;">
         <div style="font-size:7.5px;letter-spacing:0.2em;text-transform:uppercase;color:#0a1628;font-family:'Courier New',monospace;border-bottom:1px solid #0a1628;padding-bottom:4px;margin-bottom:10px;font-weight:700;">PLAIN ENGLISH SUMMARY</div>
         <div style="background:#f0f4ff;border-left:4px solid #0a1628;padding:14px 16px;">
           <div style="font-size:11px;font-style:italic;color:#222;line-height:1.7;">${ai.plain_english}</div>
@@ -1743,6 +2162,7 @@ Return ONLY this exact JSON, no markdown, no explanation:
         </div>
       </div>
 
+    </div>
     </div>`;
 
     document.body.appendChild(pdfBlock);
