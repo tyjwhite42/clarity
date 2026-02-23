@@ -721,7 +721,7 @@
 <body>
 
 <!-- API Key Setup Banner -->
-<div id="api-setup" style="display:none; position:fixed; inset:0; z-index:999; background:rgba(10,10,15,0.97); backdrop-filter:blur(10px); display:flex; align-items:center; justify-content:center; flex-direction:column; padding:24px;">
+<div id="api-setup" style="display:none; position:fixed; inset:0; z-index:999; background:rgba(10,10,15,0.97); backdrop-filter:blur(10px); align-items:center; justify-content:center; flex-direction:column; padding:24px;">
   <div style="max-width:480px; width:100%; background:#12121a; border:1px solid #2a2a3d; border-radius:6px; padding:40px;">
     <div style="font-family:'DM Mono',monospace; font-size:0.65rem; letter-spacing:0.2em; text-transform:uppercase; color:#c8f04a; margin-bottom:16px;">First Time Setup</div>
     <div style="font-family:'Playfair Display',serif; font-size:1.8rem; font-weight:700; color:#e8e8f0; margin-bottom:12px;">Enter your API Key</div>
@@ -732,6 +732,7 @@
       type="password" 
       id="api-key-input"
       placeholder="sk-ant-api03-..."
+      onkeydown="if(event.key==='Enter') saveApiKey()"
       style="width:100%; background:#0a0a0f; border:1px solid #2a2a3d; border-radius:4px; padding:14px 16px; font-family:'DM Mono',monospace; font-size:0.85rem; color:#e8e8f0; outline:none; margin-bottom:12px;"
     />
     <div id="api-error" style="color:#f04a6e; font-family:'DM Mono',monospace; font-size:0.72rem; margin-bottom:12px; display:none;">Please enter a valid API key (starts with sk-ant-)</div>
