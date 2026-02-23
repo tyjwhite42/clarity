@@ -750,7 +750,10 @@
 
 <nav>
   <div class="logo">Clarity<span>.</span></div>
-  <div class="nav-tag">Equity Research — Democratized</div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <button onclick="document.getElementById('api-setup').style.display='flex'" style="font-family:'DM Mono',monospace;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:2px;cursor:pointer;">⚙ API Key</button>
+    <div class="nav-tag">Equity Research — Democratized</div>
+  </div>
 </nav>
 
 <section class="hero">
@@ -976,7 +979,8 @@
   function saveApiKey() {
     const key = document.getElementById('api-key-input').value.trim();
     const errEl = document.getElementById('api-error');
-    if (!key.startsWith('sk-ant-')) {
+    if (!key || key.length < 20) {
+      errEl.textContent = 'Please paste your full API key.';
       errEl.style.display = 'block';
       return;
     }
@@ -1568,8 +1572,8 @@ Return ONLY this exact JSON, no markdown, no explanation:
     }).join('');
 
     // Remove any old pdf block
-    const oldPdf = document.getElementById('pdf-report');
-    if (oldPdf) oldPdf.remove();
+    const existingPdf = document.getElementById('pdf-report');
+    if (existingPdf) existingPdf.remove();
 
     const pdfBlock = document.createElement('div');
     pdfBlock.id = 'pdf-report';
