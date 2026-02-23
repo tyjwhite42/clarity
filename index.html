@@ -1518,8 +1518,8 @@ Return ONLY this exact JSON, no markdown, no explanation:
     grid.appendChild(peCard);
 
     // ── PDF HIDDEN CONTENT (only shows when printing) ──
-    const oldPdf = document.getElementById('pdf-report');
-    if (oldPdf) oldPdf.remove();
+    const prevPdf = document.getElementById('pdf-report');
+    if (prevPdf) prevPdf.remove();
 
     const verdictColor = cm.verdict.includes('BUY') ? '#1a6b1a' : cm.verdict === 'HOLD' ? '#8a6a00' : '#8a0000';
     const reportDate = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
