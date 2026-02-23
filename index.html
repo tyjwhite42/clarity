@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -563,6 +562,115 @@
     display: none;
     margin-top: 12px;
   }
+
+  /* Autocomplete */
+  .search-container { position: relative; flex: 1; }
+  .autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0; right: 0;
+    background: #1a1a26;
+    border: 1px solid var(--border);
+    border-top: none;
+    z-index: 200;
+    max-height: 240px;
+    overflow-y: auto;
+    display: none;
+  }
+  .autocomplete-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid rgba(42,42,61,0.5);
+    transition: background 0.1s;
+  }
+  .autocomplete-item:hover, .autocomplete-item.active { background: var(--surface2); }
+  .autocomplete-ticker {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--accent);
+    min-width: 52px;
+    letter-spacing: 0.05em;
+  }
+  .autocomplete-name {
+    font-size: 0.82rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .autocomplete-sector {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: #4a4a6a;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  /* Report timestamp */
+  .report-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .report-meta-dot { color: var(--border); }
+
+  /* PDF export button */
+  .export-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 14px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: auto;
+  }
+  .export-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* PDF print styles */
+  @media print {
+    body { background: white !important; color: #0a0a0f !important; }
+    .orb, nav, .hero, .loading, .disclaimer, .export-btn,
+    #api-setup, .quick-picks, .error-msg { display: none !important; }
+    #results { display: block !important; padding: 0 !important; }
+    .divider { display: none !important; }
+    .metrics-bar, .analysis-card, .macro-bar, .plain-english {
+      border-color: #ddd !important;
+      background: white !important;
+      break-inside: avoid;
+    }
+    .metric-cell { background: #f9f9f9 !important; }
+    .metric-name, .card-label, .rr-score, .autocomplete-name { color: #555 !important; }
+    .metric-value, .card-content, .rr-name, .pe-quote { color: #0a0a0f !important; }
+    .metric-value.positive { color: #2d7a2d !important; }
+    .metric-value.negative { color: #a01a1a !important; }
+    .conviction-score { color: #2d7a2d !important; }
+    .rr-bar-fill.fill-reward { background: #2d7a2d !important; }
+    .rr-bar-fill.fill-risk { background: #a01a1a !important; }
+    .analysis-grid { grid-template-columns: 1fr 1fr !important; }
+    h2 { color: #0a0a0f !important; }
+    .pdf-header {
+      display: flex !important;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #0a0a0f;
+      margin-bottom: 24px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -606,7 +714,10 @@
 
   <div class="search-wrapper">
     <div class="ticker-label">Ticker</div>
-    <input type="text" id="ticker-input" placeholder="e.g. AAPL, NVDA, TSLA" maxlength="10" />
+    <div class="search-container">
+      <input type="text" id="ticker-input" placeholder="e.g. AAPL, NVDA, TSLA, or company name" maxlength="20" autocomplete="off" />
+      <div class="autocomplete-dropdown" id="autocomplete-dropdown"></div>
+    </div>
     <button class="analyze-btn" id="analyze-btn" onclick="runAnalysis()">Analyze →</button>
   </div>
   <div class="error-msg" id="error-msg"></div>
@@ -631,6 +742,16 @@
 <!-- Results -->
 <div id="results">
   <div class="divider"></div>
+
+  <!-- Report meta -->
+  <div class="report-meta" id="report-meta">
+    <span id="report-timestamp"></span>
+    <span class="report-meta-dot">·</span>
+    <span>Powered by Clarity AI</span>
+    <span class="report-meta-dot">·</span>
+    <span>Not financial advice</span>
+    <button class="export-btn" onclick="exportPDF()">⬇ Export PDF</button>
+  </div>
 
   <!-- Stock header -->
   <div class="stock-header">
@@ -663,11 +784,132 @@
 <script>
   let ANTHROPIC_API_KEY = localStorage.getItem('clarity_api_key') || '';
 
+  // ── TICKER AUTOCOMPLETE DATABASE ──
+  const TICKERS = [
+    {t:'AAPL',n:'Apple Inc.',s:'Technology'},{t:'MSFT',n:'Microsoft Corp.',s:'Technology'},
+    {t:'GOOGL',n:'Alphabet Inc.',s:'Technology'},{t:'GOOG',n:'Alphabet Inc. (C)',s:'Technology'},
+    {t:'AMZN',n:'Amazon.com Inc.',s:'Consumer Cyclical'},{t:'NVDA',n:'NVIDIA Corp.',s:'Technology'},
+    {t:'META',n:'Meta Platforms Inc.',s:'Technology'},{t:'TSLA',n:'Tesla Inc.',s:'Consumer Cyclical'},
+    {t:'BRK.B',n:'Berkshire Hathaway B',s:'Financials'},{t:'LLY',n:'Eli Lilly & Co.',s:'Healthcare'},
+    {t:'V',n:'Visa Inc.',s:'Financials'},{t:'JPM',n:'JPMorgan Chase & Co.',s:'Financials'},
+    {t:'UNH',n:'UnitedHealth Group',s:'Healthcare'},{t:'XOM',n:'Exxon Mobil Corp.',s:'Energy'},
+    {t:'MA',n:'Mastercard Inc.',s:'Financials'},{t:'JNJ',n:'Johnson & Johnson',s:'Healthcare'},
+    {t:'PG',n:'Procter & Gamble Co.',s:'Consumer Staples'},{t:'HD',n:'Home Depot Inc.',s:'Consumer Cyclical'},
+    {t:'AVGO',n:'Broadcom Inc.',s:'Technology'},{t:'MRK',n:'Merck & Co.',s:'Healthcare'},
+    {t:'CVX',n:'Chevron Corp.',s:'Energy'},{t:'ABBV',n:'AbbVie Inc.',s:'Healthcare'},
+    {t:'COST',n:'Costco Wholesale',s:'Consumer Staples'},{t:'AMD',n:'Advanced Micro Devices',s:'Technology'},
+    {t:'NFLX',n:'Netflix Inc.',s:'Communication'},{t:'DIS',n:'Walt Disney Co.',s:'Communication'},
+    {t:'ADBE',n:'Adobe Inc.',s:'Technology'},{t:'CRM',n:'Salesforce Inc.',s:'Technology'},
+    {t:'ORCL',n:'Oracle Corp.',s:'Technology'},{t:'INTC',n:'Intel Corp.',s:'Technology'},
+    {t:'QCOM',n:'Qualcomm Inc.',s:'Technology'},{t:'IBM',n:'IBM Corp.',s:'Technology'},
+    {t:'GS',n:'Goldman Sachs Group',s:'Financials'},{t:'BAC',n:'Bank of America Corp.',s:'Financials'},
+    {t:'WMT',n:'Walmart Inc.',s:'Consumer Staples'},{t:'KO',n:'Coca-Cola Co.',s:'Consumer Staples'},
+    {t:'PEP',n:'PepsiCo Inc.',s:'Consumer Staples'},{t:'MCD',n:'McDonald\'s Corp.',s:'Consumer Cyclical'},
+    {t:'NKE',n:'Nike Inc.',s:'Consumer Cyclical'},{t:'SBUX',n:'Starbucks Corp.',s:'Consumer Cyclical'},
+    {t:'BA',n:'Boeing Co.',s:'Industrials'},{t:'CAT',n:'Caterpillar Inc.',s:'Industrials'},
+    {t:'GE',n:'GE Aerospace',s:'Industrials'},{t:'F',n:'Ford Motor Co.',s:'Consumer Cyclical'},
+    {t:'GM',n:'General Motors Co.',s:'Consumer Cyclical'},{t:'UBER',n:'Uber Technologies',s:'Technology'},
+    {t:'LYFT',n:'Lyft Inc.',s:'Technology'},{t:'SNAP',n:'Snap Inc.',s:'Communication'},
+    {t:'TWTR',n:'Twitter/X Corp.',s:'Communication'},{t:'PYPL',n:'PayPal Holdings',s:'Financials'},
+    {t:'SQ',n:'Block Inc.',s:'Financials'},{t:'COIN',n:'Coinbase Global',s:'Financials'},
+    {t:'PLTR',n:'Palantir Technologies',s:'Technology'},{t:'SNOW',n:'Snowflake Inc.',s:'Technology'},
+    {t:'ABNB',n:'Airbnb Inc.',s:'Consumer Cyclical'},{t:'BKNG',n:'Booking Holdings',s:'Consumer Cyclical'},
+    {t:'SPOT',n:'Spotify Technology',s:'Communication'},{t:'SHOP',n:'Shopify Inc.',s:'Technology'},
+    {t:'ZM',n:'Zoom Video Comm.',s:'Technology'},{t:'DOCU',n:'DocuSign Inc.',s:'Technology'},
+    {t:'NET',n:'Cloudflare Inc.',s:'Technology'},{t:'DDOG',n:'Datadog Inc.',s:'Technology'},
+    {t:'CRWD',n:'CrowdStrike Holdings',s:'Technology'},{t:'S',n:'SentinelOne Inc.',s:'Technology'},
+    {t:'TSM',n:'Taiwan Semiconductor',s:'Technology'},{t:'ASML',n:'ASML Holding',s:'Technology'},
+    {t:'ARM',n:'Arm Holdings',s:'Technology'},{t:'SMCI',n:'Super Micro Computer',s:'Technology'},
+    {t:'WFC',n:'Wells Fargo & Co.',s:'Financials'},{t:'MS',n:'Morgan Stanley',s:'Financials'},
+    {t:'C',n:'Citigroup Inc.',s:'Financials'},{t:'AXP',n:'American Express Co.',s:'Financials'},
+    {t:'PFE',n:'Pfizer Inc.',s:'Healthcare'},{t:'MRNA',n:'Moderna Inc.',s:'Healthcare'},
+    {t:'BNTX',n:'BioNTech SE',s:'Healthcare'},{t:'AMGN',n:'Amgen Inc.',s:'Healthcare'},
+    {t:'T',n:'AT&T Inc.',s:'Communication'},{t:'VZ',n:'Verizon Comm.',s:'Communication'},
+    {t:'TMUS',n:'T-Mobile US Inc.',s:'Communication'},{t:'COP',n:'ConocoPhillips',s:'Energy'},
+    {t:'SLB',n:'SLB (Schlumberger)',s:'Energy'},{t:'NEE',n:'NextEra Energy',s:'Utilities'},
+    {t:'AMT',n:'American Tower Corp.',s:'Real Estate'},{t:'SPG',n:'Simon Property Group',s:'Real Estate'},
+  ];
+
+  function getAutocompleteSuggestions(query) {
+    if (!query || query.length < 1) return [];
+    const q = query.toUpperCase();
+    return TICKERS.filter(item =>
+      item.t.startsWith(q) ||
+      item.n.toUpperCase().includes(q)
+    ).slice(0, 7);
+  }
+
+  let activeIndex = -1;
+
+  function setupAutocomplete() {
+    const input = document.getElementById('ticker-input');
+    const dropdown = document.getElementById('autocomplete-dropdown');
+
+    input.addEventListener('input', () => {
+      const val = input.value.trim();
+      const suggestions = getAutocompleteSuggestions(val);
+      activeIndex = -1;
+
+      if (!suggestions.length || !val) {
+        dropdown.style.display = 'none';
+        return;
+      }
+
+      dropdown.innerHTML = suggestions.map((s, i) => `
+        <div class="autocomplete-item" data-ticker="${s.t}" onmousedown="selectTicker('${s.t}')">
+          <span class="autocomplete-ticker">${s.t}</span>
+          <span class="autocomplete-name">${s.n}</span>
+          <span class="autocomplete-sector">${s.s}</span>
+        </div>
+      `).join('');
+      dropdown.style.display = 'block';
+    });
+
+    input.addEventListener('keydown', e => {
+      const items = dropdown.querySelectorAll('.autocomplete-item');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIndex = Math.min(activeIndex + 1, items.length - 1);
+        items.forEach((el, i) => el.classList.toggle('active', i === activeIndex));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIndex = Math.max(activeIndex - 1, -1);
+        items.forEach((el, i) => el.classList.toggle('active', i === activeIndex));
+      } else if (e.key === 'Enter') {
+        if (activeIndex >= 0 && items[activeIndex]) {
+          selectTicker(items[activeIndex].dataset.ticker);
+        } else {
+          dropdown.style.display = 'none';
+          runAnalysis();
+        }
+      } else if (e.key === 'Escape') {
+        dropdown.style.display = 'none';
+      }
+    });
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.search-wrapper')) {
+        dropdown.style.display = 'none';
+      }
+    });
+  }
+
+  function selectTicker(ticker) {
+    document.getElementById('ticker-input').value = ticker;
+    document.getElementById('autocomplete-dropdown').style.display = 'none';
+    runAnalysis();
+  }
+
+  function exportPDF() {
+    window.print();
+  }
+
   // Show setup screen if no key saved
   window.addEventListener('DOMContentLoaded', () => {
     if (!ANTHROPIC_API_KEY) {
       document.getElementById('api-setup').style.display = 'flex';
     }
+    setupAutocomplete();
   });
 
   function saveApiKey() {
@@ -860,6 +1102,12 @@ Return ONLY this exact JSON, no markdown, no explanation:
     document.getElementById('loading').style.display = 'none';
     const results = document.getElementById('results');
     results.style.display = 'block';
+
+    // Report timestamp
+    const now = new Date();
+    const stamp = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) +
+      ' · ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('report-timestamp').textContent = `Report generated: ${stamp}`;
 
     const cm = ai.conviction_model;
     const dcf = ai.dcf;
