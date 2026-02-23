@@ -149,9 +149,17 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 4px;
-    overflow: hidden;
+    overflow: visible;
     transition: border-color 0.2s, box-shadow 0.2s;
+    position: relative;
   }
+  /* Clip only the visible bar parts, not the dropdown */
+  .search-wrapper > .ticker-label,
+  .search-wrapper > .analyze-btn {
+    border-radius: 0;
+  }
+  .search-wrapper > .ticker-label:first-child { border-radius: 4px 0 0 4px; }
+  .search-wrapper > .analyze-btn:last-child { border-radius: 0 4px 4px 0; }
   .search-wrapper:focus-within {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(200,240,74,0.1);
@@ -569,15 +577,17 @@
   /* Autocomplete */
   .autocomplete-dropdown {
     position: absolute;
-    top: 100%;
-    left: 0; right: 0;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
     background: #1a1a26;
-    border: 1px solid var(--border);
-    border-top: none;
-    z-index: 200;
-    max-height: 240px;
+    border: 1px solid var(--accent);
+    border-radius: 0 0 4px 4px;
+    z-index: 9999;
+    max-height: 260px;
     overflow-y: auto;
     display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   }
   .autocomplete-item {
     padding: 10px 16px;
@@ -694,15 +704,16 @@
 
   /* PDF print styles */
   @media print {
-    @page { margin: 0.4in; size: letter; }
-    html, body { background: white !important; }
+    @page { margin: 0; size: letter; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     body > *:not(#pdf-report) { display: none !important; }
     #pdf-report {
       display: block !important;
       position: static !important;
-      top: auto !important; left: auto !important;
-      width: auto !important; height: auto !important;
+      width: 100% !important;
+      height: auto !important;
       overflow: visible !important;
+      background: white !important;
     }
   }
 </style>
@@ -750,9 +761,9 @@
     <div class="ticker-label">Ticker</div>
     <div class="search-container">
       <input type="text" id="ticker-input" placeholder="e.g. AAPL, NVDA, TSLA, or company name" maxlength="20" autocomplete="off" />
-      <div class="autocomplete-dropdown" id="autocomplete-dropdown"></div>
     </div>
     <button class="analyze-btn" id="analyze-btn" onclick="runAnalysis()">Analyze →</button>
+    <div class="autocomplete-dropdown" id="autocomplete-dropdown"></div>
   </div>
   <div class="error-msg" id="error-msg"></div>
 
@@ -937,7 +948,20 @@
   }
 
   function exportPDF() {
-    window.print();
+    const pdfBlock = document.getElementById('pdf-report');
+    if (!pdfBlock) {
+      alert('Please run an analysis first before exporting.');
+      return;
+    }
+    pdfBlock.style.cssText = 'display:block;position:fixed;top:0;left:0;width:100%;background:white;z-index:99999;overflow:auto;';
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        pdfBlock.style.cssText = 'display:none;position:absolute;top:-99999px;left:0;width:0;height:0;overflow:hidden;';
+        document.body.style.overflow = '';
+      }, 500);
+    }, 200);
   }
 
   // Show setup screen if no key saved
@@ -1542,68 +1566,179 @@ Return ONLY this exact JSON, no markdown, no explanation:
       return '<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px;"><span style="font-weight:700;">'+f.name+'</span><span style="color:#8a0000;font-family:monospace;">'+f.score+'/10</span></div><div style="height:2px;background:#eee;border-radius:1px;margin-bottom:3px;"><div style="height:100%;width:'+f.score*10+'%;background:#a01a1a;"></div></div><div style="font-size:9px;color:#666;">'+f.detail+'</div></div>';
     }).join('');
 
+    // Remove any old pdf block
+    const oldPdf = document.getElementById('pdf-report');
+    if (oldPdf) oldPdf.remove();
+
     const pdfBlock = document.createElement('div');
     pdfBlock.id = 'pdf-report';
     pdfBlock.style.cssText = 'display:none;position:absolute;top:-99999px;left:0;width:0;height:0;overflow:hidden;';
-    pdfBlock.innerHTML =
-      '<div style="font-family:Georgia,serif;color:#111;padding:32px;font-size:11px;">' +
 
-      // ── HEADER ──
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:2px solid #111;margin-bottom:16px;">' +
-        '<div><div style="font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:#888;margin-bottom:4px;font-family:monospace;">Clarity · Equity Research</div>' +
-        '<div style="font-size:22px;font-weight:700;letter-spacing:-0.01em;">'+data.name+'</div>' +
-        '<div style="font-size:11px;color:#555;margin-top:2px;">'+ticker+' · '+data.sector+' · '+data.industry+'</div></div>' +
-        '<div style="text-align:right;"><div style="font-size:26px;font-weight:700;color:'+verdictColor+';">'+cm.verdict+'</div>' +
-        '<div style="font-size:11px;color:#555;">Conviction: '+cm.conviction_score+'/10</div>' +
-        '<div style="font-size:9px;color:#888;margin-top:2px;font-family:monospace;">'+reportDate+'</div></div>' +
-      '</div>' +
+    pdfBlock.innerHTML = `
+    <div style="font-family:'Times New Roman',Georgia,serif;color:#111;background:white;width:100%;max-width:780px;margin:0 auto;padding:40px 48px;font-size:10.5px;line-height:1.5;">
 
-      // ── KEY METRICS ──
-      '<div style="margin-bottom:14px;"><div style="font-size:8px;letter-spacing:0.15em;text-transform:uppercase;color:#888;margin-bottom:6px;font-family:monospace;">Key Metrics</div>' +
-      '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:1px;background:#ddd;border:1px solid #ddd;">'+metricsHtml+'</div></div>' +
+      <!-- HEADER BAR -->
+      <div style="background:#0a1628;color:white;padding:14px 20px;margin:-40px -48px 28px -48px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:8px;letter-spacing:0.25em;text-transform:uppercase;color:#aabbdd;font-family:'Courier New',monospace;margin-bottom:2px;">Clarity Equity Research</div>
+          <div style="font-size:14px;font-weight:700;letter-spacing:0.02em;color:white;">INITIATING COVERAGE</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:8px;color:#aabbdd;font-family:'Courier New',monospace;">${reportDate}</div>
+          <div style="font-size:8px;color:#aabbdd;font-family:'Courier New',monospace;margin-top:2px;">NOT FINANCIAL ADVICE · EDUCATIONAL USE ONLY</div>
+        </div>
+      </div>
 
-      // ── CONVICTION MODEL ──
-      '<div style="margin-bottom:14px;"><div style="font-size:8px;letter-spacing:0.12em;text-transform:uppercase;color:#888;margin-bottom:6px;font-family:monospace;">Conviction Model — (Val×30%) + (Quality×25%) + (Growth×20%) + (Risk×15%) + (Macro×10%)</div>' +
-      '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#ddd;border:1px solid #ddd;">'+convModelHtml+'</div></div>' +
+      <!-- COMPANY HEADER -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #0a1628;margin-bottom:20px;">
+        <div>
+          <div style="font-size:22px;font-weight:700;letter-spacing:-0.02em;color:#0a1628;line-height:1.1;">${data.name}</div>
+          <div style="font-size:10px;color:#555;margin-top:5px;font-family:'Courier New',monospace;letter-spacing:0.05em;">${ticker} &nbsp;·&nbsp; ${data.sector} &nbsp;·&nbsp; ${data.industry}</div>
+          <div style="margin-top:12px;font-size:10px;color:#333;max-width:480px;line-height:1.6;font-style:italic;">${ai.analyst_summary}</div>
+        </div>
+        <div style="text-align:center;background:#f8f8f8;border:1px solid #ddd;padding:16px 24px;min-width:120px;flex-shrink:0;margin-left:24px;">
+          <div style="font-size:7.5px;letter-spacing:0.2em;text-transform:uppercase;color:#888;font-family:'Courier New',monospace;margin-bottom:6px;">Rating</div>
+          <div style="font-size:20px;font-weight:700;color:${verdictColor};letter-spacing:0.02em;">${cm.verdict}</div>
+          <div style="border-top:1px solid #ddd;margin:8px 0;"></div>
+          <div style="font-size:7.5px;letter-spacing:0.15em;text-transform:uppercase;color:#888;font-family:'Courier New',monospace;margin-bottom:4px;">Conviction</div>
+          <div style="font-size:20px;font-weight:700;color:#0a1628;">${cm.conviction_score}<span style="font-size:11px;color:#888;font-weight:400;">/10</span></div>
+          <div style="border-top:1px solid #ddd;margin:8px 0;"></div>
+          <div style="font-size:7.5px;color:#888;font-family:'Courier New',monospace;">Price Target</div>
+          <div style="font-size:14px;font-weight:700;color:#0a1628;">${data.targetMeanPrice ? '$'+data.targetMeanPrice.toFixed(2) : 'N/A'}</div>
+        </div>
+      </div>
 
-      // ── DCF + SENSITIVITY ──
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;">' +
-        '<div><div style="font-size:8px;letter-spacing:0.12em;text-transform:uppercase;color:#888;margin-bottom:6px;font-family:monospace;">DCF Valuation Model</div>' +
-        '<div style="border:1px solid #ddd;padding:10px;">' +
-        '<div style="font-size:9px;color:#555;margin-bottom:8px;">'+dcf.dcf_note+'</div>' +
-        dcfRowsHtml +
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px;">' +
-          '<div style="text-align:center;padding:6px;background:#f0fff0;border:1px solid #cec;"><div style="font-size:8px;color:#2d7a2d;font-family:monospace;">BULL</div><div style="font-size:14px;font-weight:700;color:#1a6b1a;">$'+dcf.bull_case_price.toFixed(0)+'</div></div>' +
-          '<div style="text-align:center;padding:6px;background:#fffbf0;border:1px solid #dda;"><div style="font-size:8px;color:#8a6a00;font-family:monospace;">BASE</div><div style="font-size:14px;font-weight:700;color:#7a5a00;">$'+dcf.base_case_price.toFixed(0)+'</div></div>' +
-          '<div style="text-align:center;padding:6px;background:#fff0f0;border:1px solid #dcc;"><div style="font-size:8px;color:#8a0000;font-family:monospace;">BEAR</div><div style="font-size:14px;font-weight:700;color:#7a0000;">$'+dcf.bear_case_price.toFixed(0)+'</div></div>' +
-        '</div></div></div>' +
-        '<div><div style="font-size:8px;letter-spacing:0.12em;text-transform:uppercase;color:#888;margin-bottom:6px;font-family:monospace;">Sensitivity Analysis</div>' +
-        '<div style="border:1px solid #ddd;padding:10px;">' +
-        '<div style="display:grid;grid-template-columns:1fr 48px 48px;gap:4px;padding-bottom:4px;border-bottom:1px solid #ddd;margin-bottom:4px;">' +
-          '<span style="font-size:8px;color:#888;font-family:monospace;text-transform:uppercase;">Scenario</span>' +
-          '<span style="font-size:8px;color:#888;font-family:monospace;text-align:right;">Impact</span>' +
-          '<span style="font-size:8px;color:#888;font-family:monospace;text-align:right;">Target</span>' +
-        '</div>'+sensHtml+'</div></div>' +
-      '</div>' +
+      <!-- SECTION: KEY METRICS -->
+      <div style="margin-bottom:20px;">
+        <div style="font-size:7.5px;letter-spacing:0.2em;text-transform:uppercase;color:#0a1628;font-family:'Courier New',monospace;border-bottom:1px solid #0a1628;padding-bottom:4px;margin-bottom:10px;font-weight:700;">KEY METRICS</div>
+        <table style="width:100%;border-collapse:collapse;font-size:9.5px;">
+          <tr style="background:#0a1628;color:white;">
+            <th style="padding:5px 8px;text-align:left;font-family:'Courier New',monospace;font-weight:600;font-size:7.5px;letter-spacing:0.1em;">PRICE</th>
+            <th style="padding:5px 8px;text-align:left;font-family:'Courier New',monospace;font-weight:600;font-size:7.5px;letter-spacing:0.1em;">MKT CAP</th>
+            <th style="padding:5px 8px;text-align:left;font-family:'Courier New',monospace;font-weight:600;font-size:7.5px;letter-spacing:0.1em;">P/E (TTM)</th>
+            <th style="padding:5px 8px;text-align:left;font-family:'Courier New',monospace;font-weight:600;font-size:7.5px;letter-spacing:0.1em;">FWD P/E</th>
+            <th style="padding:5px 8px;text-align:left;font-family:'Courier New',monospace;font-weight:600;font-size:7.5px;letter-spacing:0.1em;">REV GROWTH</th>
+            <th style="padding:5px 8px;text-align:left;font-family:'Courier New',monospace;font-weight:600;font-size:7.5px;letter-spacing:0.1em;">NET MARGIN</th>
+            <th style="padding:5px 8px;text-align:left;font-family:'Courier New',monospace;font-weight:600;font-size:7.5px;letter-spacing:0.1em;">BETA</th>
+            <th style="padding:5px 8px;text-align:left;font-family:'Courier New',monospace;font-weight:600;font-size:7.5px;letter-spacing:0.1em;">52W RANGE</th>
+          </tr>
+          <tr style="background:#f9f9f9;">
+            <td style="padding:6px 8px;font-weight:700;">${data.currentPrice ? '$'+data.currentPrice.toFixed(2) : 'N/A'}<br><span style="font-size:8px;color:${data.change1d>=0?'#1a6b1a':'#8a0000'}">${data.change1d?(data.change1d*100).toFixed(2)+'%':''}</span></td>
+            <td style="padding:6px 8px;">${formatLargeNumber(data.marketCap)}</td>
+            <td style="padding:6px 8px;">${data.peRatio?data.peRatio.toFixed(1)+'x':'N/A'}</td>
+            <td style="padding:6px 8px;">${data.forwardPE?data.forwardPE.toFixed(1)+'x':'N/A'}</td>
+            <td style="padding:6px 8px;color:${data.revenueGrowth>=0?'#1a6b1a':'#8a0000'};font-weight:600;">${data.revenueGrowth?pct(data.revenueGrowth):'N/A'}</td>
+            <td style="padding:6px 8px;">${data.profitMargins?pct(data.profitMargins):'N/A'}</td>
+            <td style="padding:6px 8px;">${data.beta?data.beta.toFixed(2):'N/A'}</td>
+            <td style="padding:6px 8px;font-size:9px;">$${data.fiftyTwoWeekLow?.toFixed(0)||'?'} – $${data.fiftyTwoWeekHigh?.toFixed(0)||'?'}</td>
+          </tr>
+        </table>
+      </div>
 
-      // ── REWARD + RISK ──
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;">' +
-        '<div><div style="font-size:8px;letter-spacing:0.12em;text-transform:uppercase;color:#888;margin-bottom:6px;font-family:monospace;">Reward Factors</div><div style="border:1px solid #ddd;padding:10px;">'+rewardHtml+'</div></div>' +
-        '<div><div style="font-size:8px;letter-spacing:0.12em;text-transform:uppercase;color:#888;margin-bottom:6px;font-family:monospace;">Risk Factors</div><div style="border:1px solid #ddd;padding:10px;">'+riskHtml+'</div></div>' +
-      '</div>' +
+      <!-- SECTION: VALUATION -->
+      <div style="margin-bottom:20px;">
+        <div style="font-size:7.5px;letter-spacing:0.2em;text-transform:uppercase;color:#0a1628;font-family:'Courier New',monospace;border-bottom:1px solid #0a1628;padding-bottom:4px;margin-bottom:10px;font-weight:700;">VALUATION ANALYSIS</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#ddd;border:1px solid #ddd;margin-bottom:10px;">
+          <div style="background:#f0fff4;padding:10px;text-align:center;">
+            <div style="font-size:7.5px;color:#1a6b1a;font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Bull Case</div>
+            <div style="font-size:18px;font-weight:700;color:#1a6b1a;">$${dcf.bull_case_price.toFixed(0)}</div>
+            <div style="font-size:8px;color:#2d7a2d;margin-top:2px;">${data.currentPrice?((dcf.bull_case_price/data.currentPrice-1)*100).toFixed(0)+'% upside':''}</div>
+          </div>
+          <div style="background:#fffbf0;padding:10px;text-align:center;">
+            <div style="font-size:7.5px;color:#8a6a00;font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Base Case</div>
+            <div style="font-size:18px;font-weight:700;color:#7a5a00;">$${dcf.base_case_price.toFixed(0)}</div>
+            <div style="font-size:8px;color:#8a6a00;margin-top:2px;">${data.currentPrice?((dcf.base_case_price/data.currentPrice-1)*100).toFixed(0)+'% vs current':''}</div>
+          </div>
+          <div style="background:#fff5f5;padding:10px;text-align:center;">
+            <div style="font-size:7.5px;color:#8a0000;font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Bear Case</div>
+            <div style="font-size:18px;font-weight:700;color:#7a0000;">$${dcf.bear_case_price.toFixed(0)}</div>
+            <div style="font-size:8px;color:#8a0000;margin-top:2px;">${data.currentPrice?((dcf.bear_case_price/data.currentPrice-1)*100).toFixed(0)+'% downside':''}</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#444;line-height:1.65;background:#f9f9f9;padding:10px;border-left:3px solid #0a1628;">${ai.valuation_take}</div>
+      </div>
 
-      // ── ANALYST SUMMARY + PLAIN ENGLISH ──
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;">' +
-        '<div style="padding:10px;border:1px solid #ddd;background:#fafafa;"><div style="font-size:8px;color:#888;text-transform:uppercase;letter-spacing:0.12em;font-family:monospace;margin-bottom:6px;">Analyst Summary</div><div style="font-size:10px;color:#333;line-height:1.6;">'+ai.analyst_summary+'</div></div>' +
-        '<div style="padding:10px;border-left:3px solid #111;background:#f5f5f5;"><div style="font-size:8px;color:#888;text-transform:uppercase;letter-spacing:0.12em;font-family:monospace;margin-bottom:6px;">Plain English</div><div style="font-size:10px;font-style:italic;color:#333;line-height:1.6;">'+ai.plain_english+'</div></div>' +
-      '</div>' +
+      <!-- SECTION: REWARD vs RISK -->
+      <div style="margin-bottom:20px;">
+        <div style="font-size:7.5px;letter-spacing:0.2em;text-transform:uppercase;color:#0a1628;font-family:'Courier New',monospace;border-bottom:1px solid #0a1628;padding-bottom:4px;margin-bottom:10px;font-weight:700;">REWARD VS. RISK</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <div style="font-size:7.5px;color:#1a6b1a;font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;font-weight:700;">▲ UPSIDE DRIVERS</div>
+            ${ai.reward_factors.map(f => `
+              <div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #f0f0f0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                  <span style="font-weight:700;font-size:10px;">${f.name}</span>
+                  <span style="font-family:'Courier New',monospace;font-size:9px;color:#1a6b1a;font-weight:700;">${f.score}/10</span>
+                </div>
+                <div style="height:3px;background:#e8e8e8;border-radius:1px;margin-bottom:4px;"><div style="height:100%;width:${f.score*10}%;background:#2d7a2d;border-radius:1px;"></div></div>
+                <div style="font-size:9px;color:#555;line-height:1.5;">${f.detail}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div>
+            <div style="font-size:7.5px;color:#8a0000;font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;font-weight:700;">▼ RISK FACTORS</div>
+            ${ai.risk_factors.map(f => `
+              <div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #f0f0f0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                  <span style="font-weight:700;font-size:10px;">${f.name}</span>
+                  <span style="font-family:'Courier New',monospace;font-size:9px;color:#8a0000;font-weight:700;">${f.score}/10</span>
+                </div>
+                <div style="height:3px;background:#e8e8e8;border-radius:1px;margin-bottom:4px;"><div style="height:100%;width:${f.score*10}%;background:#a01a1a;border-radius:1px;"></div></div>
+                <div style="font-size:9px;color:#555;line-height:1.5;">${f.detail}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
 
-      // ── FOOTER ──
-      '<div style="padding-top:10px;border-top:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;">' +
-        '<div style="font-size:8px;color:#aaa;font-family:monospace;">CLARITY · AI-POWERED EQUITY RESEARCH · NOT FINANCIAL ADVICE</div>' +
-        '<div style="font-size:8px;color:#aaa;font-family:monospace;">tyjwhite42.github.io/clarity</div>' +
-      '</div>' +
-      '</div>';
+      <!-- SECTION: MACRO + BEAR CASE -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <div>
+          <div style="font-size:7.5px;letter-spacing:0.2em;text-transform:uppercase;color:#0a1628;font-family:'Courier New',monospace;border-bottom:1px solid #0a1628;padding-bottom:4px;margin-bottom:10px;font-weight:700;">MACRO &amp; RATE CONTEXT</div>
+          <div style="background:#f9f9f9;padding:10px;border:1px solid #e0e0e0;">
+            <div style="display:flex;gap:16px;margin-bottom:8px;">
+              <div style="text-align:center;">
+                <div style="font-size:7px;color:#888;font-family:'Courier New',monospace;text-transform:uppercase;margin-bottom:2px;">Rate Sensitivity</div>
+                <div style="font-size:13px;font-weight:700;color:#0a1628;">${ai.macro_context.rate_sensitivity}</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-size:7px;color:#888;font-family:'Courier New',monospace;text-transform:uppercase;margin-bottom:2px;">Rate Impact</div>
+                <div style="font-size:13px;font-weight:700;color:${ai.macro_context.rate_impact==='POSITIVE'?'#1a6b1a':ai.macro_context.rate_impact==='NEGATIVE'?'#8a0000':'#8a6a00'}">${ai.macro_context.rate_impact}</div>
+              </div>
+            </div>
+            <div style="font-size:9px;color:#444;line-height:1.55;border-top:1px solid #e0e0e0;padding-top:8px;">${ai.macro_context.rate_note}</div>
+            <div style="font-size:9px;color:#444;line-height:1.55;margin-top:6px;">${ai.macro_sensitivity}</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:7.5px;letter-spacing:0.2em;text-transform:uppercase;color:#8a0000;font-family:'Courier New',monospace;border-bottom:1px solid #8a0000;padding-bottom:4px;margin-bottom:10px;font-weight:700;">BEAR CASE — WHAT COULD GO WRONG</div>
+          <div style="background:#fff5f5;padding:10px;border:1px solid #f0d0d0;border-left:3px solid #8a0000;">
+            <div style="font-size:10px;color:#444;line-height:1.65;">${ai.what_could_go_wrong}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION: PLAIN ENGLISH -->
+      <div style="margin-bottom:24px;">
+        <div style="font-size:7.5px;letter-spacing:0.2em;text-transform:uppercase;color:#0a1628;font-family:'Courier New',monospace;border-bottom:1px solid #0a1628;padding-bottom:4px;margin-bottom:10px;font-weight:700;">PLAIN ENGLISH SUMMARY</div>
+        <div style="background:#f0f4ff;border-left:4px solid #0a1628;padding:14px 16px;">
+          <div style="font-size:11px;font-style:italic;color:#222;line-height:1.7;">${ai.plain_english}</div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div style="padding-top:12px;border-top:2px solid #0a1628;display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:7.5px;color:#888;font-family:'Courier New',monospace;line-height:1.6;">
+          CLARITY · AI-POWERED EQUITY RESEARCH<br>
+          This report is for educational purposes only. Not financial advice. Not an offer to buy or sell securities.
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:7.5px;color:#888;font-family:'Courier New',monospace;">tyjwhite42.github.io/clarity</div>
+          <div style="font-size:7.5px;color:#888;font-family:'Courier New',monospace;margin-top:2px;">${reportDate}</div>
+        </div>
+      </div>
+
+    </div>`;
 
     document.body.appendChild(pdfBlock);
 
