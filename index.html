@@ -1466,65 +1466,84 @@ Return this exact JSON structure:
 
   // ── LAYER 1: DATA FETCHING (FMP + Yahoo fallback) ──
   async function fetchStockData(ticker) {
-    const proxy = 'https://api.allorigins.win/get?url=';
+    const proxies = [
+      'https://corsproxy.io/?',
+      'https://api.allorigins.win/get?url=',
+    ];
+
+    async function fetchWithProxy(url) {
+      // Try corsproxy.io first (returns response directly)
+      try {
+        const res = await fetch('https://corsproxy.io/?' + encodeURIComponent(url));
+        if (res.ok) {
+          const text = await res.text();
+          return JSON.parse(text);
+        }
+      } catch(e) {}
+      // Fallback to allorigins
+      try {
+        const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
+        if (res.ok) {
+          const wrapper = await res.json();
+          return JSON.parse(wrapper.contents);
+        }
+      } catch(e) {}
+      throw new Error('All proxies failed for: ' + url);
+    }
 
     // Primary: FMP financial statements (5-year history)
     let fmpData = null;
     if (FMP_API_KEY) {
       try {
-        const [profileRes, incomeRes, cashflowRes, balanceRes, quoteRes] = await Promise.all([
-          fetch(proxy + encodeURIComponent(`https://financialmodelingprep.com/api/v3/profile/${ticker}?apikey=${FMP_API_KEY}`)),
-          fetch(proxy + encodeURIComponent(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=5&apikey=${FMP_API_KEY}`)),
-          fetch(proxy + encodeURIComponent(`https://financialmodelingprep.com/api/v3/cash-flow-statement/${ticker}?limit=5&apikey=${FMP_API_KEY}`)),
-          fetch(proxy + encodeURIComponent(`https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?limit=5&apikey=${FMP_API_KEY}`)),
-          fetch(proxy + encodeURIComponent(`https://financialmodelingprep.com/api/v3/quote/${ticker}?apikey=${FMP_API_KEY}`)),
+        const [profile, income, cashflow, balance, quote] = await Promise.all([
+          fetchWithProxy(`https://financialmodelingprep.com/api/v3/profile/${ticker}?apikey=${FMP_API_KEY}`),
+          fetchWithProxy(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=5&apikey=${FMP_API_KEY}`),
+          fetchWithProxy(`https://financialmodelingprep.com/api/v3/cash-flow-statement/${ticker}?limit=5&apikey=${FMP_API_KEY}`),
+          fetchWithProxy(`https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?limit=5&apikey=${FMP_API_KEY}`),
+          fetchWithProxy(`https://financialmodelingprep.com/api/v3/quote/${ticker}?apikey=${FMP_API_KEY}`),
         ]);
 
-        const [profileJson, incomeJson, cashflowJson, balanceJson, quoteJson] = await Promise.all([
-          profileRes.json(), incomeRes.json(), cashflowRes.json(), balanceRes.json(), quoteRes.json()
-        ]);
+        const p = Array.isArray(profile) ? profile[0] : profile;
+        const inc = Array.isArray(income) ? income : [];
+        const cf = Array.isArray(cashflow) ? cashflow : [];
+        const bal = Array.isArray(balance) ? balance : [];
+        const q = Array.isArray(quote) ? quote[0] : quote;
 
-        const profile = JSON.parse(profileJson.contents)[0];
-        const income = JSON.parse(incomeJson.contents);
-        const cashflow = JSON.parse(cashflowJson.contents);
-        const balance = JSON.parse(balanceJson.contents);
-        const quote = JSON.parse(quoteJson.contents)[0];
-
-        if (profile && income?.length > 0) {
-          const latest = income[0];
-          const latestCF = cashflow[0] || {};
-          const latestBal = balance[0] || {};
+        if (p && inc.length > 0) {
+          const latest = inc[0];
+          const latestCF = cf[0] || {};
+          const latestBal = bal[0] || {};
 
           // Build 5-year revenue history
-          const revenueHistory = income.map(y => ({ year: y.calendarYear, revenue: y.revenue })).reverse();
+          const revenueHistory = inc.map(y => ({ year: y.calendarYear, revenue: y.revenue })).reverse();
 
           // Compute historical averages for DCF assumptions
-          const avgRevenueGrowth = income.length > 1
-            ? income.slice(0, -1).reduce((sum, y, i) => {
-                const prev = income[i + 1];
+          const avgRevenueGrowth = inc.length > 1
+            ? inc.slice(0, -1).reduce((sum, y, i) => {
+                const prev = inc[i + 1];
                 return sum + (prev.revenue > 0 ? (y.revenue - prev.revenue) / prev.revenue : 0);
-              }, 0) / (income.length - 1)
+              }, 0) / (inc.length - 1)
             : 0.08;
 
-          const avgOperatingMargin = income.reduce((sum, y) => sum + (y.revenue > 0 ? y.operatingIncome / y.revenue : 0), 0) / income.length;
-          const avgTaxRate = income.reduce((sum, y) => sum + (y.incomeBeforeTax > 0 ? Math.max(0, y.incomeTaxExpense / y.incomeBeforeTax) : 0.21), 0) / income.length;
-          const avgCapexPct = cashflow.reduce((sum, y) => sum + (y.revenue > 0 ? Math.abs(y.capitalExpenditure || 0) / y.revenue : 0.05), 0) / cashflow.length;
-          const avgDepreciation = cashflow.reduce((sum, y) => sum + (y.depreciationAndAmortization || 0), 0) / cashflow.length;
+          const avgOperatingMargin = inc.reduce((sum, y) => sum + (y.revenue > 0 ? y.operatingIncome / y.revenue : 0), 0) / inc.length;
+          const avgTaxRate = inc.reduce((sum, y) => sum + (y.incomeBeforeTax > 0 ? Math.max(0, y.incomeTaxExpense / y.incomeBeforeTax) : 0.21), 0) / inc.length;
+          const avgCapexPct = cf.length > 0 ? cf.reduce((sum, y) => sum + (y.revenue > 0 ? Math.abs(y.capitalExpenditure || 0) / y.revenue : 0.05), 0) / cf.length : 0.05;
+          const avgDepreciation = cf.length > 0 ? cf.reduce((sum, y) => sum + (y.depreciationAndAmortization || 0), 0) / cf.length : 0;
 
           fmpData = {
             source: 'FMP',
             lastUpdated: new Date().toISOString(),
-            name: profile.companyName,
-            sector: profile.sector,
-            industry: profile.industry,
-            description: profile.description?.substring(0, 400),
-            currentPrice: quote?.price || profile.price,
-            change1d: quote?.changesPercentage ? quote.changesPercentage / 100 : null,
-            marketCap: profile.mktCap,
-            peRatio: quote?.pe || null,
+            name: p.companyName,
+            sector: p.sector,
+            industry: p.industry,
+            description: p.description?.substring(0, 400),
+            currentPrice: q?.price || p.price,
+            change1d: q?.changesPercentage ? q.changesPercentage / 100 : null,
+            marketCap: p.mktCap,
+            peRatio: q?.pe || null,
             forwardPE: null,
-            beta: profile.beta,
-            fiftyTwoWeekHigh: quote?.yearHigh || null,
+            beta: p.beta,
+            fiftyTwoWeekHigh: q?.yearHigh || null,
             fiftyTwoWeekLow: quote?.yearLow || null,
             targetMeanPrice: quote?.priceAvg200 || null,
             // Full financial statement data
@@ -1539,7 +1558,7 @@ Return this exact JSON structure:
               : null,
             ebitda: latest.ebitda,
             eps: latest.eps,
-            sharesOutstanding: profile.sharesOutstanding,
+            sharesOutstanding: p.sharesOutstanding,
             netDebt: (latestBal.totalDebt || 0) - (latestBal.cashAndCashEquivalents || 0),
             debtToEquity: latestBal.totalStockholdersEquity > 0 ? (latestBal.totalDebt || 0) / latestBal.totalStockholdersEquity : null,
             returnOnEquity: latestBal.totalStockholdersEquity > 0 ? latest.netIncome / latestBal.totalStockholdersEquity : null,
@@ -1548,7 +1567,6 @@ Return this exact JSON structure:
             depreciation: latestCF.depreciationAndAmortization || null,
             changeInWorkingCapital: latestCF.changeInWorkingCapital || null,
             taxRate: avgTaxRate,
-            // Historical averages for DCF
             historicalAvgRevenueGrowth: avgRevenueGrowth,
             historicalAvgOperatingMargin: avgOperatingMargin,
             historicalAvgCapexPct: avgCapexPct,
@@ -1556,29 +1574,31 @@ Return this exact JSON structure:
           };
         }
       } catch(e) {
-        console.warn('FMP fetch failed, falling back to AI estimates', e);
+        console.warn('FMP fetch failed, falling back to Yahoo Finance', e);
       }
     }
 
-    // Fallback: Yahoo Finance proxy if FMP unavailable
+    // Fallback: Yahoo Finance if FMP unavailable
     if (!fmpData) {
-      const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=summaryDetail,financialData,defaultKeyStatistics,assetProfile,price`;
-      const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
-      if (!res.ok) throw new Error('Could not fetch stock data.');
-      const wrapper = await res.json();
-      const data = JSON.parse(wrapper.contents);
-      if (data.quoteSummary?.error || !data.quoteSummary?.result) throw new Error(`Ticker "${ticker}" not found.`);
-      const r = data.quoteSummary.result[0];
+      let yahooData = null;
+      try {
+        const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=summaryDetail,financialData,defaultKeyStatistics,assetProfile,price`;
+        yahooData = await fetchWithProxy(url);
+      } catch(e) {
+        throw new Error(`Could not fetch data for "${ticker}". Please check the ticker and try again.`);
+      }
+      if (yahooData?.quoteSummary?.error || !yahooData?.quoteSummary?.result) throw new Error(`Ticker "${ticker}" not found.`);
+      const r = yahooData.quoteSummary.result[0];
       const price = r.price; const summary = r.summaryDetail;
       const financial = r.financialData; const keyStats = r.defaultKeyStatistics;
-      const profile = r.assetProfile;
+      const yProfile = r.assetProfile;
       fmpData = {
         source: 'Yahoo Finance',
         lastUpdated: new Date().toISOString(),
         name: price?.longName || price?.shortName || ticker,
-        sector: profile?.sector || 'N/A',
-        industry: profile?.industry || 'N/A',
-        description: profile?.longBusinessSummary?.substring(0, 400) || '',
+        sector: yProfile?.sector || 'N/A',
+        industry: yProfile?.industry || 'N/A',
+        description: yProfile?.longBusinessSummary?.substring(0, 400) || '',
         currentPrice: price?.regularMarketPrice?.raw,
         change1d: price?.regularMarketChangePercent?.raw,
         marketCap: price?.marketCap?.raw,
