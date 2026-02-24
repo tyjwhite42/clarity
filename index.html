@@ -32,7 +32,99 @@
     overflow-x: hidden;
   }
 
-  /* Animated background grid */
+  /* ── TICKER TAPE ── */
+  .ticker-tape {
+    position: fixed;
+    top: 60px; /* below nav */
+    left: 0;
+    right: 0;
+    height: 36px;
+    background: rgba(10,10,15,0.97);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    z-index: 99;
+    backdrop-filter: blur(8px);
+  }
+
+  .ticker-tape-track {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    animation: tickerScroll 60s linear infinite;
+    will-change: transform;
+  }
+
+  .ticker-tape-track:hover {
+    animation-play-state: paused;
+  }
+
+  @keyframes tickerScroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .ticker-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 20px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    border-right: 1px solid rgba(42,42,61,0.6);
+  }
+
+  .ticker-item:hover { opacity: 0.7; }
+
+  .ticker-symbol {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: 0.06em;
+  }
+
+  .ticker-price {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+
+  .ticker-change {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+  }
+
+  .ticker-change.up   { color: #c8f04a; }
+  .ticker-change.down { color: #f04a6e; }
+  .ticker-change.flat { color: var(--muted); }
+
+  .ticker-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    margin: 0 4px;
+  }
+  .ticker-dot.up   { background: #c8f04a; }
+  .ticker-dot.down { background: #f04a6e; }
+  .ticker-dot.flat { background: var(--muted); }
+
+  .ticker-status {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.58rem;
+    color: var(--muted);
+    padding: 0 12px;
+    flex-shrink: 0;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-right: 1px solid var(--border);
+  }
+
+  /* Push page content below ticker tape */
+  .main-nav { top: 0; }
+  body { padding-top: 96px; } /* nav 60px + tape 36px */
   body::before {
     content: '';
     position: fixed;
@@ -65,7 +157,8 @@
     position: fixed;
     top: 0; left: 0; right: 0;
     z-index: 100;
-    padding: 20px 48px;
+    height: 60px;
+    padding: 0 48px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -542,14 +635,42 @@
     text-align: center;
     padding: 60px 0;
   }
-  .loading-ring {
-    width: 48px;
+  .loading-chart {
+    width: 120px;
     height: 48px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 20px;
+    margin: 0 auto 24px;
+    position: relative;
+  }
+  .loading-chart svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .loading-chart-path {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 200;
+    stroke-dashoffset: 200;
+    animation: drawChart 1.4s ease-in-out infinite;
+  }
+  .loading-chart-dot {
+    fill: var(--accent);
+    animation: dotPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes drawChart {
+    0%   { stroke-dashoffset: 200; opacity: 1; }
+    70%  { stroke-dashoffset: 0; opacity: 1; }
+    85%  { stroke-dashoffset: 0; opacity: 0; }
+    100% { stroke-dashoffset: 200; opacity: 0; }
+  }
+  @keyframes dotPulse {
+    0%   { opacity: 0; }
+    70%  { opacity: 1; }
+    85%  { opacity: 0; }
+    100% { opacity: 0; }
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-text {
@@ -566,8 +687,105 @@
     color: var(--muted);
   }
 
-  /* Footer note */
-  .disclaimer {
+  /* ── MARKET PULSE ── */
+  .market-pulse {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    max-width: 700px;
+    margin-bottom: 40px;
+  }
+  .pulse-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    transition: border-color 0.2s;
+  }
+  .pulse-card:hover { border-color: rgba(200,240,74,0.3); }
+  .pulse-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .pulse-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.3rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .pulse-change {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+  }
+  .pulse-change.up   { color: var(--accent); }
+  .pulse-change.down { color: var(--danger); }
+  .pulse-change.flat { color: var(--muted); }
+
+  /* ── MARKET STATUS BANNER ── */
+  .market-status-banner {
+    position: fixed;
+    top: 96px;
+    left: 0; right: 0;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    z-index: 98;
+    transition: background 0.5s;
+  }
+  .market-status-banner.open  { background: rgba(200,240,74,0.07); border-bottom: 1px solid rgba(200,240,74,0.15); color: var(--accent); }
+  .market-status-banner.closed { background: rgba(42,42,61,0.4); border-bottom: 1px solid var(--border); color: var(--muted); }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    animation: statusPulse 2s ease-in-out infinite;
+  }
+  .market-status-banner.open .status-dot  { background: var(--accent); }
+  .market-status-banner.closed .status-dot { background: var(--muted); animation: none; }
+  @keyframes statusPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* Push content below status banner too */
+  body { padding-top: 96px; } /* nav 60px + tape 36px */
+
+  /* ── TRENDING TICKERS ── */
+  .trending-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-right: 8px;
+  }
+  .trending-chip {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    letter-spacing: 0.06em;
+  }
+  .trending-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .trending-chip .chip-change { font-size: 0.6rem; }
     font-family: 'DM Mono', monospace;
     font-size: 0.65rem;
     color: var(--muted);
@@ -839,12 +1057,23 @@
   <button onclick="document.getElementById('api-setup').style.display='flex'" style="font-family:'DM Mono',monospace;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:2px;cursor:pointer;">⚙ API Key</button>
 </nav>
 
+<!-- ── TICKER TAPE ── -->
+<div class="ticker-tape" id="ticker-tape">
+  <div class="ticker-status" id="ticker-status">LIVE</div>
+  <div style="overflow:hidden;flex:1;display:flex;">
+    <div class="ticker-tape-track" id="ticker-track"><!-- populated by JS --></div>
+  </div>
+</div>
+
+<!-- ── MARKET STATUS BANNER removed ── -->
+
 <div id="page-analyze" class="page active">
 <section class="hero">
   <div class="hero-eyebrow">AI-Powered Stock Analysis</div>
   <h1>Wall Street research.<br><em>For everyone.</em></h1>
   <p class="hero-sub">Enter any stock ticker and get the same quality of analysis that hedge funds pay thousands for — in plain English and in analyst-grade detail. Reward vs. risk, front and center.</p>
 
+  <!-- Market Pulse removed -->
   <div class="search-wrapper">
     <div class="ticker-label">Ticker</div>
     <div class="search-container">
@@ -855,13 +1084,16 @@
   </div>
   <div class="error-msg" id="error-msg"></div>
 
-  <div class="quick-picks">
-    <span class="quick-label">Try:</span>
-    <button class="quick-chip" onclick="quickPick('AAPL')">AAPL</button>
-    <button class="quick-chip" onclick="quickPick('NVDA')">NVDA</button>
-    <button class="quick-chip" onclick="quickPick('MSFT')">MSFT</button>
-    <button class="quick-chip" onclick="quickPick('TSLA')">TSLA</button>
-    <button class="quick-chip" onclick="quickPick('AMZN')">AMZN</button>
+  <!-- Trending tickers (dynamic) -->
+  <div style="margin-top:16px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;" id="trending-row">
+    <span class="trending-label">Trending:</span>
+    <span id="trending-chips">
+      <button class="quick-chip" onclick="quickPick('AAPL')">AAPL</button>
+      <button class="quick-chip" onclick="quickPick('NVDA')">NVDA</button>
+      <button class="quick-chip" onclick="quickPick('MSFT')">MSFT</button>
+      <button class="quick-chip" onclick="quickPick('TSLA')">TSLA</button>
+      <button class="quick-chip" onclick="quickPick('AMZN')">AMZN</button>
+    </span>
   </div>
 
   <!-- Compare Mode -->
@@ -890,8 +1122,13 @@
 
 <!-- Loading -->
 <div class="loading" id="loading">
-  <div class="loading-ring"></div>
-  <div class="loading-text">Pulling financial data</div>
+  <div class="loading-chart">
+    <svg viewBox="0 0 120 48" preserveAspectRatio="none">
+      <path class="loading-chart-path" d="M0,38 L15,32 L30,36 L45,20 L60,24 L75,10 L90,16 L105,8 L120,4"/>
+      <circle class="loading-chart-dot" cx="120" cy="4" r="3"/>
+    </svg>
+  </div>
+  <div class="loading-text">Analyzing</div>
   <div class="loading-steps" id="loading-step">Fetching price & valuation metrics...</div>
 </div>
 
@@ -971,7 +1208,7 @@
 
   <!-- Portfolio Loading -->
   <div class="loading" id="portfolio-loading">
-    <div class="loading-ring"></div>
+    <div class="loading-chart"><svg viewBox="0 0 120 48" preserveAspectRatio="none"><path class="loading-chart-path" d="M0,38 L15,32 L30,36 L45,20 L60,24 L75,10 L90,16 L105,8 L120,4"/><circle class="loading-chart-dot" cx="120" cy="4" r="3"/></svg></div>
     <div class="loading-text">Analyzing your portfolio</div>
     <div class="loading-steps" id="portfolio-loading-step">Fetching data for all holdings...</div>
   </div>
@@ -1133,7 +1370,7 @@
   </section>
 
   <div class="loading" id="discover-loading" style="display:none;">
-    <div class="loading-ring"></div>
+    <div class="loading-chart"><svg viewBox="0 0 120 48" preserveAspectRatio="none"><path class="loading-chart-path" d="M0,38 L15,32 L30,36 L45,20 L60,24 L75,10 L90,16 L105,8 L120,4"/><circle class="loading-chart-dot" cx="120" cy="4" r="3"/></svg></div>
     <div class="loading-text">Screening the market</div>
     <div class="loading-steps" id="discover-loading-step">Applying filters...</div>
   </div>
@@ -1220,7 +1457,213 @@
     }
   }
 
-  // ── COMPARE MODE ──
+  // ── MARKET PULSE & STATUS BANNER ──
+  async function loadMarketPulse() {
+    const indices = [
+      { id: 'spy', ticker: 'SPY', label: 'S&P 500' },
+      { id: 'qqq', ticker: 'QQQ', label: 'NASDAQ' },
+      { id: 'dia', ticker: 'DIA', label: 'DOW' },
+    ];
+
+    // Market open check
+    const now = new Date();
+    const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const day = et.getDay();
+    const hour = et.getHours() + et.getMinutes() / 60;
+    const isOpen = day >= 1 && day <= 5 && hour >= 9.5 && hour < 16;
+
+    // Update status banner
+    const banner = document.getElementById('market-status-banner');
+    const statusText = document.getElementById('market-status-text');
+    banner.className = 'market-status-banner ' + (isOpen ? 'open' : 'closed');
+    if (isOpen) {
+      const closeTime = new Date(et);
+      closeTime.setHours(16, 0, 0, 0);
+      const minsLeft = Math.round((closeTime - et) / 60000);
+      const hLeft = Math.floor(minsLeft / 60);
+      const mLeft = minsLeft % 60;
+      statusText.textContent = `Market Open · Closes in ${hLeft}h ${mLeft}m`;
+    } else {
+      // Next open
+      let daysUntil = 1;
+      const nextDay = (day + 1) % 7;
+      if (day === 5) daysUntil = 2; // Friday → Monday
+      if (day === 6) daysUntil = 1; // Saturday → Sunday wait... → Monday
+      if (day === 0) daysUntil = 1; // Sunday → Monday
+      statusText.textContent = day === 0 || day === 6 ? 'Market Closed · Opens Monday 9:30 AM ET' : 'Market Closed · Opens tomorrow 9:30 AM ET';
+    }
+
+    // Fetch index prices
+    try {
+      const results = await Promise.allSettled(
+        indices.map(idx =>
+          fetch('https://corsproxy.io/?' + encodeURIComponent(
+            `https://query1.finance.yahoo.com/v8/finance/chart/${idx.ticker}?interval=1d&range=2d`
+          )).then(r => r.json()).then(d => {
+            const meta = d?.chart?.result?.[0]?.meta;
+            if (!meta) return null;
+            const price = meta.regularMarketPrice;
+            const prev = meta.previousClose || meta.chartPreviousClose;
+            const change = prev ? ((price - prev) / prev) * 100 : 0;
+            const changeAbs = price - prev;
+            return { ...idx, price, change, changeAbs };
+          })
+        )
+      );
+
+      results.forEach(r => {
+        if (r.status !== 'fulfilled' || !r.value) return;
+        const d = r.value;
+        const cls = d.change > 0.05 ? 'up' : d.change < -0.05 ? 'down' : 'flat';
+        const sign = d.change > 0 ? '+' : '';
+        document.getElementById(`pulse-${d.id}`).textContent = `$${d.price?.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}`;
+        const chgEl = document.getElementById(`pulse-${d.id}-chg`);
+        chgEl.textContent = `${sign}${d.changeAbs?.toFixed(2)} (${sign}${d.change?.toFixed(2)}%)`;
+        chgEl.className = `pulse-change ${cls}`;
+      });
+    } catch(e) {
+      console.warn('Market pulse fetch failed');
+    }
+
+    // Refresh every 5 min
+    setTimeout(loadMarketPulse, 5 * 60 * 1000);
+  }
+
+  // ── TRENDING TICKERS (top movers from tape data) ──
+  function updateTrending(tapeItems) {
+    if (!tapeItems || tapeItems.length < 5) return;
+    // Sort by absolute % change, pick top 5 movers
+    const sorted = [...tapeItems].sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 5);
+    const html = sorted.map(item => {
+      const cls = item.change > 0 ? 'up' : item.change < 0 ? 'down' : 'flat';
+      const color = cls === 'up' ? 'var(--accent)' : cls === 'down' ? 'var(--danger)' : 'var(--muted)';
+      const sign = item.change > 0 ? '+' : '';
+      return `<button class="trending-chip" onclick="quickPick('${item.ticker}')" style="color:var(--text);">
+        ${item.ticker} <span class="chip-change" style="color:${color}">${sign}${item.change?.toFixed(1)}%</span>
+      </button>`;
+    }).join('');
+    document.getElementById('trending-chips').innerHTML = html;
+  }
+
+  // ── ANIMATED CONVICTION SCORE ──
+  function animateConviction(targetScore, element) {
+    const tooltipHTML = element.querySelector('.tooltip-box') ? element.innerHTML.replace(/^\d+\/10/, '') : '';
+    let current = 0;
+    const duration = 800;
+    const steps = 30;
+    const increment = targetScore / steps;
+    const interval = duration / steps;
+    const timer = setInterval(() => {
+      current = Math.min(current + increment, targetScore);
+      const display = Math.round(current);
+      element.innerHTML = display + '/10' + tooltipHTML;
+      if (current >= targetScore) clearInterval(timer);
+    }, interval);
+  }
+
+  // ── SEQUENTIAL CARD FADE-IN ──
+  function animateCardsSequentially() {
+    const cards = document.querySelectorAll('#analysis-grid .analysis-card');
+    cards.forEach((card, i) => {
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(20px)';
+      card.style.transition = 'none';
+      card.style.animation = 'none';
+      setTimeout(() => {
+        card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0)';
+      }, i * 80);
+    });
+  }
+  const TAPE_TICKERS = ['AAPL','MSFT','NVDA','GOOGL','AMZN','META','TSLA','BRK.B','JPM','V','UNH','XOM','JNJ','WMT','MA','NFLX','AMD','PLTR','COIN','SPY'];
+
+  async function loadTickerTape() {
+    try {
+      const results = await Promise.allSettled(
+        TAPE_TICKERS.map(t =>
+          fetch('https://corsproxy.io/?' + encodeURIComponent(
+            `https://query1.finance.yahoo.com/v8/finance/chart/${t}?interval=1d&range=2d`
+          )).then(r => r.json()).then(d => {
+            const q = d?.chart?.result?.[0];
+            const meta = q?.meta;
+            if (!meta) return null;
+            const price = meta.regularMarketPrice;
+            const prev = meta.previousClose || meta.chartPreviousClose;
+            const change = prev ? ((price - prev) / prev) * 100 : 0;
+            return { ticker: t, price, change };
+          })
+        )
+      );
+
+      const items = results
+        .filter(r => r.status === 'fulfilled' && r.value)
+        .map(r => r.value);
+
+      if (!items.length) throw new Error('No data');
+
+      // Check if market is open
+      const now = new Date();
+      const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const day = et.getDay();
+      const hour = et.getHours() + et.getMinutes() / 60;
+      const isOpen = day >= 1 && day <= 5 && hour >= 9.5 && hour < 16;
+      document.getElementById('ticker-status').textContent = isOpen ? 'LIVE' : 'CLOSED';
+      document.getElementById('ticker-status').style.color = isOpen ? 'var(--accent)' : 'var(--muted)';
+
+      // Build HTML for one set, then duplicate for seamless loop
+      const html = items.map(item => {
+        const up = item.change > 0.05;
+        const down = item.change < -0.05;
+        const cls = up ? 'up' : down ? 'down' : 'flat';
+        const sign = up ? '+' : '';
+        return `<div class="ticker-item" onclick="switchTab('analyze');setTimeout(()=>{document.getElementById('ticker-input').value='${item.ticker}';runAnalysis();},100)">
+          <div class="ticker-dot ${cls}"></div>
+          <span class="ticker-symbol">${item.ticker}</span>
+          <span class="ticker-price">$${item.price?.toFixed(2)}</span>
+          <span class="ticker-change ${cls}">${sign}${item.change?.toFixed(2)}%</span>
+        </div>`;
+      }).join('');
+
+      // Duplicate for seamless infinite scroll
+      document.getElementById('ticker-track').innerHTML = html + html;
+      updateTrending(items);
+
+      // Adjust animation speed based on content width
+      const track = document.getElementById('ticker-track');
+      const totalWidth = track.scrollWidth;
+      const duration = Math.max(30, totalWidth / 80); // ~80px per second
+      track.style.animationDuration = duration + 's';
+
+    } catch(e) {
+      // Fallback: show static placeholder tickers
+      const fallback = [
+        {ticker:'AAPL',price:227.52,change:1.24},
+        {ticker:'NVDA',price:131.38,change:-0.87},
+        {ticker:'MSFT',price:415.20,change:0.63},
+        {ticker:'TSLA',price:342.10,change:2.91},
+        {ticker:'AMZN',price:225.80,change:-0.42},
+        {ticker:'META',price:718.60,change:1.18},
+        {ticker:'GOOGL',price:195.40,change:0.35},
+        {ticker:'SPY',price:598.20,change:0.54},
+      ];
+      const html = fallback.map(item => {
+        const cls = item.change > 0 ? 'up' : item.change < 0 ? 'down' : 'flat';
+        const sign = item.change > 0 ? '+' : '';
+        return `<div class="ticker-item" onclick="switchTab('analyze');setTimeout(()=>{document.getElementById('ticker-input').value='${item.ticker}';runAnalysis();},100)">
+          <div class="ticker-dot ${cls}"></div>
+          <span class="ticker-symbol">${item.ticker}</span>
+          <span class="ticker-price">$${item.price.toFixed(2)}</span>
+          <span class="ticker-change ${cls}">${sign}${item.change.toFixed(2)}%</span>
+        </div>`;
+      }).join('');
+      document.getElementById('ticker-track').innerHTML = html + html;
+      document.getElementById('ticker-status').textContent = 'DELAYED';
+    }
+
+    // Refresh every 5 minutes
+    setTimeout(loadTickerTape, 5 * 60 * 1000);
+  }
   let compareMode = false;
 
   function toggleCompare() {
@@ -1880,6 +2323,7 @@ Return this exact JSON structure:
     }
     setupAutocomplete();
     renderWatchlist();
+    loadTickerTape();
   });
 
   function saveApiKey() {
@@ -2241,14 +2685,14 @@ Return ONLY this exact JSON, no markdown, no explanation:
     document.getElementById('res-name').textContent = data.name;
     document.getElementById('res-sector').textContent = `${data.sector} · ${data.industry}`;
 
-    // Conviction
+    // Conviction — render then animate
     const convEl = document.getElementById('res-conviction');
-    convEl.textContent = cm.conviction_score + '/10';
     convEl.className = 'conviction-score tooltip-wrap';
-    convEl.innerHTML = cm.conviction_score + '/10' + makeTooltip('Conviction');
     if (cm.conviction_score < 5) convEl.classList.add('low');
     else if (cm.conviction_score < 7) convEl.classList.add('medium');
+    convEl.innerHTML = '0/10' + makeTooltip('Conviction');
     document.getElementById('res-verdict').textContent = cm.verdict;
+    setTimeout(() => animateConviction(cm.conviction_score, convEl), 300);
 
     // Metrics bar
     const metrics = [
@@ -2474,6 +2918,9 @@ Return ONLY this exact JSON, no markdown, no explanation:
       <div class="pe-quote">${ai.plain_english}</div>
     `;
     grid.appendChild(peCard);
+
+    // Animate cards sequentially
+    setTimeout(animateCardsSequentially, 50);
 
     // ── PDF HIDDEN CONTENT (only shows when printing) ──
     const prevPdf = document.getElementById('pdf-report');
