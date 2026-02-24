@@ -439,7 +439,7 @@
   /* Key metrics bar */
   .metrics-bar {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(8, 1fr);
     gap: 1px;
     background: var(--border);
     border: 1px solid var(--border);
@@ -449,13 +449,13 @@
   }
   .metric-cell {
     background: var(--surface);
-    padding: 20px 24px;
+    padding: 16px 18px;
     transition: background 0.2s;
   }
   .metric-cell:hover { background: var(--surface2); }
   .metric-name {
     font-family: 'DM Mono', monospace;
-    font-size: 0.65rem;
+    font-size: 0.58rem;
     color: var(--muted);
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -463,7 +463,7 @@
   }
   .metric-value {
     font-family: 'DM Mono', monospace;
-    font-size: 1.2rem;
+    font-size: 1.05rem;
     font-weight: 500;
     color: var(--text);
   }
@@ -471,9 +471,12 @@
   .metric-value.negative { color: var(--danger); }
   .metric-delta {
     font-family: 'DM Mono', monospace;
-    font-size: 0.68rem;
+    font-size: 0.62rem;
     color: var(--muted);
     margin-top: 4px;
+  }
+  @media (max-width: 1000px) {
+    .metrics-bar { grid-template-columns: repeat(4, 1fr); }
   }
 
   /* Analysis grid */
@@ -1289,6 +1292,9 @@
     <div class="divider"></div>
     <div id="portfolio-content"></div>
   </div>
+<!-- Portfolio Recommendations -->
+<div id="portfolio-recommendations" style="display:none;position:relative;z-index:1;"></div>
+
 </div><!-- end page-portfolio -->
 
 <!-- ── ABOUT PAGE ── -->
@@ -2188,8 +2194,18 @@ Return this exact JSON structure:
     {"action": <...>, "ticker": <...>, "reason": <...>},
     {"action": <...>, "ticker": <...>, "reason": <...>}
   ],
+  "recommendations": [
+    {
+      "ticker": <ticker symbol of recommended stock NOT already in portfolio>,
+      "name": <company name>,
+      "why_it_fits": <one sentence on why this stock fills a gap in THIS specific portfolio and matches the investor goal>,
+      "conviction": <1-10>,
+      "flag": <"Balances Concentration" | "Adds Yield" | "Growth Opportunity" | "Defensive Add" | "Sector Diversifier" | "High Conviction Idea">
+    }
+  ],
   "plain_english": <2 sentence plain English summary of what this portfolio is and whether it is well constructed>
-}`;
+}
+Give 3-4 recommendations. They must NOT be tickers already in the portfolio. Each must genuinely fill a gap based on the investor goal and current holdings.`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -2201,7 +2217,7 @@ Return this exact JSON structure:
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
+        max_tokens: 2000,
         messages: [{ role: 'user', content: prompt }]
       })
     });
@@ -2311,6 +2327,50 @@ Return this exact JSON structure:
 
     document.getElementById('portfolio-results').style.display = 'block';
     document.getElementById('portfolio-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Render recommendations if present
+    const recsContainer = document.getElementById('portfolio-recommendations');
+    if (ai.recommendations?.length) {
+      const flagColors = {
+        'Balances Concentration': 'var(--accent2)',
+        'Adds Yield': 'var(--gold)',
+        'Growth Opportunity': 'var(--accent)',
+        'Defensive Add': '#8888aa',
+        'Sector Diversifier': '#a04af0',
+        'High Conviction Idea': 'var(--danger)'
+      };
+      recsContainer.innerHTML = `
+        <div class="divider"></div>
+        <div style="max-width:1100px;margin:0 auto;padding:0 48px 60px;">
+          <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--accent);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:8px;">Stocks to Consider</div>
+          <div style="font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:700;margin-bottom:6px;">Based on your portfolio &amp; goal</div>
+          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:24px;font-weight:300;">AI-identified gaps in your portfolio for <strong style="color:var(--text)">${goalLabels[selectedGoal]}</strong>. Click any to run a full analysis.</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;">
+            ${ai.recommendations.map(r => {
+              const fc = flagColors[r.flag] || 'var(--accent)';
+              const convColor = r.conviction >= 8 ? 'var(--accent)' : r.conviction >= 6 ? 'var(--gold)' : 'var(--muted)';
+              return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px;cursor:pointer;transition:border-color 0.2s;"
+                onmouseover="this.style.borderColor='rgba(200,240,74,0.4)'"
+                onmouseout="this.style.borderColor='var(--border)'"
+                onclick="switchTab('analyze');setTimeout(()=>{document.getElementById('ticker-input').value='${r.ticker}';runAnalysis();},100)">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+                  <div>
+                    <div style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--accent);font-weight:500;letter-spacing:0.08em;">${r.ticker}</div>
+                    <div style="font-size:0.88rem;color:var(--text);font-weight:500;margin-top:2px;">${r.name}</div>
+                  </div>
+                  <div style="font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:700;color:${convColor};">${r.conviction}<span style="font-size:0.75rem;color:var(--muted)">/10</span></div>
+                </div>
+                <div style="font-family:'DM Mono',monospace;font-size:0.6rem;color:${fc};letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">${r.flag}</div>
+                <div style="font-size:0.8rem;color:#8888aa;line-height:1.55;font-weight:300;">${r.why_it_fits}</div>
+                <div style="margin-top:12px;font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--accent2);letter-spacing:0.1em;">RUN ANALYSIS →</div>
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="margin-top:16px;font-family:'DM Mono',monospace;font-size:0.6rem;color:var(--muted);text-align:center;">AI-generated ideas based on your portfolio profile. Not financial advice.</div>
+        </div>
+      `;
+      recsContainer.style.display = 'block';
+    }
   }
 
 
@@ -2867,6 +2927,41 @@ Return ONLY this exact JSON, no markdown, no explanation:
       body: 'A weighted score from 1–10 combining valuation, quality, growth, risk, and macro factors. Built on the same framework used by institutional investors.',
       context: '8–10 = Strong opportunity. 6–7 = Solid but not exceptional. 4–5 = Neutral. Below 4 = Significant concerns.'
     },
+    'Bull Case': {
+      title: 'Bull Case — Best Scenario',
+      body: 'What happens if everything goes right: tailwinds accelerate, execution is flawless, and the market re-rates the stock higher.',
+      context: 'Analysts use this to define upside potential. It\'s possible but requires multiple things to go right simultaneously.'
+    },
+    'Base Case': {
+      title: 'Base Case — Most Likely Scenario',
+      body: 'The most probable outcome based on current trends continuing as expected. This is what the analyst actually believes will happen.',
+      context: 'Professional investors typically size positions based on the base case, not the bull case.'
+    },
+    'Bear Case': {
+      title: 'Bear Case — Downside Scenario',
+      body: 'What happens if key risks materialize: competition intensifies, growth slows, or macro headwinds hit harder than expected.',
+      context: 'Always read the bear case. Understanding what could go wrong is just as important as understanding the upside.'
+    },
+    'Reward vs Risk': {
+      title: 'Reward vs. Risk Analysis',
+      body: 'Compares the potential upside (bull case) against the potential downside (bear case) from current price. A good risk/reward ratio has more upside than downside.',
+      context: 'Professional investors look for at least 2:1 reward-to-risk. If you can lose $10 but only gain $5, the odds aren\'t in your favor.'
+    },
+    'Free Cash Flow': {
+      title: 'Free Cash Flow (FCF)',
+      body: 'The actual cash a company generates after paying for operations and capital expenditures. Cash that can be used for dividends, buybacks, or reinvestment.',
+      context: 'Buffett calls this the "owner earnings." Companies with strong, growing FCF are often the best long-term investments.'
+    },
+    'ROE': {
+      title: 'Return on Equity (ROE)',
+      body: 'How much profit a company generates for each dollar of shareholder equity. Measures management efficiency.',
+      context: 'ROE above 15% is generally strong. Warren Buffett looks for businesses with consistently high ROE as a sign of competitive advantage.'
+    },
+    'Debt/Equity': {
+      title: 'Debt-to-Equity Ratio',
+      body: 'How much debt a company has relative to shareholder equity. Higher = more financial leverage and risk.',
+      context: 'Acceptable levels vary by industry. Banks operate with high leverage. Software companies ideally have low debt.'
+    },
   };
 
   function makeTooltip(key) {
@@ -3062,17 +3157,20 @@ Return ONLY this exact JSON, no markdown, no explanation:
         <div>
           <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:16px;">Price Targets</div>
           <div style="display:grid;gap:10px;">
-            <div style="background:rgba(200,240,74,0.08);border:1px solid rgba(200,240,74,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#c8f04a">BULL CASE</span>
+            <div class="tooltip-wrap" style="background:rgba(200,240,74,0.08);border:1px solid rgba(200,240,74,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#c8f04a">BULL CASE ⓘ</span>
               <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#c8f04a">$${dcf.bull_case_price.toFixed(0)}</span>
+              ${makeTooltip('Bull Case')}
             </div>
-            <div style="background:rgba(240,200,74,0.08);border:1px solid rgba(240,200,74,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#f0c84a">BASE CASE</span>
+            <div class="tooltip-wrap" style="background:rgba(240,200,74,0.08);border:1px solid rgba(240,200,74,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#f0c84a">BASE CASE ⓘ</span>
               <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#f0c84a">$${dcf.base_case_price.toFixed(0)}</span>
+              ${makeTooltip('Base Case')}
             </div>
-            <div style="background:rgba(240,74,110,0.08);border:1px solid rgba(240,74,110,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#f04a6e">BEAR CASE</span>
+            <div class="tooltip-wrap" style="background:rgba(240,74,110,0.08);border:1px solid rgba(240,74,110,0.3);border-radius:4px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#f04a6e">BEAR CASE ⓘ</span>
               <span style="font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#f04a6e">$${dcf.bear_case_price.toFixed(0)}</span>
+              ${makeTooltip('Bear Case')}
             </div>
             <div style="text-align:center;margin-top:4px;">
               <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--muted)">Base case implies </span>
