@@ -1449,6 +1449,53 @@ Return this exact JSON structure:
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+  async function fetchStockData(ticker) {
+    const prompt = `For the stock ticker "${ticker}", return ONLY this JSON with no markdown:
+{
+  "valid": true,
+  "name": "Full Company Name",
+  "sector": "Sector",
+  "industry": "Industry",
+  "currentPrice": 150.00,
+  "change1d": 0.012,
+  "marketCap": 2400000000000,
+  "peRatio": 28.5,
+  "forwardPE": 24.0,
+  "beta": 1.2,
+  "fiftyTwoWeekHigh": 200.00,
+  "fiftyTwoWeekLow": 130.00,
+  "revenueGrowth": 0.08,
+  "profitMargins": 0.25,
+  "returnOnEquity": 0.45,
+  "debtToEquity": 150.0,
+  "freeCashflow": 90000000000,
+  "targetMeanPrice": 210.00
+}
+If the ticker is invalid, set valid to false.`;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 600,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!response.ok) throw new Error('Could not fetch data for ' + ticker);
+    const result = await response.json();
+    const text = result.content[0].text.replace(/```json|```/g, '').trim();
+    const data = JSON.parse(text);
+    if (!data.valid) throw new Error('Ticker not found: ' + ticker);
+    return data;
+  }
+
   async function fetchAndAnalyze(ticker) {
     const prompt = `You are both a financial data API and a senior equity research analyst at a top-tier hedge fund. For the stock ticker "${ticker}", return financial data AND a full institutional-grade research report.
 
