@@ -482,6 +482,7 @@
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     margin-bottom: 20px;
+    align-items: stretch;
   }
 
   @media (max-width: 768px) {
@@ -501,8 +502,11 @@
     transition: border-color 0.2s;
     animation: fadeUp 0.5s ease forwards;
     opacity: 0;
+    display: flex;
+    flex-direction: column;
   }
   .analysis-card:hover { border-color: rgba(200,240,74,0.3); }
+  .analysis-card .card-content { flex: 1; }
 
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(20px); }
@@ -761,7 +765,47 @@
   /* Push content below status banner too */
   body { padding-top: 96px; } /* nav 60px + tape 36px */
 
-  /* ── TRENDING TICKERS ── */
+  /* ── GOAL SELECTOR ── */
+  .goal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .goal-card:hover { border-color: rgba(200,240,74,0.4); }
+  .goal-card.active {
+    border-color: var(--accent);
+    background: rgba(200,240,74,0.05);
+  }
+  .goal-icon { font-size: 1.2rem; }
+  .goal-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: 0.06em;
+  }
+  .goal-card.active .goal-title { color: var(--accent); }
+  .goal-desc {
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-weight: 300;
+    line-height: 1.5;
+  }
+
+  /* ── STREAMING TEXT ── */
+  .streaming-cursor::after {
+    content: '▋';
+    animation: blink 0.7s step-end infinite;
+    color: var(--accent);
+    font-size: 0.85em;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
   .trending-label {
     font-family: 'DM Mono', monospace;
     font-size: 0.62rem;
@@ -1181,7 +1225,34 @@
   <section class="hero" style="padding-bottom:40px;">
     <div class="hero-eyebrow">Portfolio Analyzer</div>
     <h1>Your portfolio.<br><em>Analyzed.</em></h1>
-    <p class="hero-sub">Enter your holdings below. The AI will score your overall portfolio, flag your weakest positions, and suggest specific moves to improve it.</p>
+    <p class="hero-sub">Enter your holdings and select your investment goal. The AI tailors its analysis, scoring, and recommendations to match exactly what you're trying to achieve.</p>
+
+    <!-- Goal Selector -->
+    <div style="max-width:700px;margin-bottom:28px;">
+      <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:12px;">My Investment Goal</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;" id="goal-selector">
+        <div class="goal-card active" data-goal="long_term" onclick="selectGoal(this)">
+          <div class="goal-icon">📈</div>
+          <div class="goal-title">Long-Term Growth</div>
+          <div class="goal-desc">10+ years · Compound quality businesses · Tolerate volatility</div>
+        </div>
+        <div class="goal-card" data-goal="dividend" onclick="selectGoal(this)">
+          <div class="goal-icon">💰</div>
+          <div class="goal-title">Dividend & Income</div>
+          <div class="goal-desc">Steady cash flow · Yield-focused · Capital preservation</div>
+        </div>
+        <div class="goal-card" data-goal="aggressive" onclick="selectGoal(this)">
+          <div class="goal-icon">🚀</div>
+          <div class="goal-title">Aggressive Growth</div>
+          <div class="goal-desc">1–3 years · High risk tolerance · Momentum & high-growth</div>
+        </div>
+        <div class="goal-card" data-goal="short_term" onclick="selectGoal(this)">
+          <div class="goal-icon">⚡</div>
+          <div class="goal-title">Short-Term Trading</div>
+          <div class="goal-desc">Weeks to months · Catalysts & momentum · Near-term targets</div>
+        </div>
+      </div>
+    </div>
 
     <div id="portfolio-holdings" style="max-width:600px;margin-bottom:16px;">
       <div class="portfolio-row" id="holding-0">
@@ -1398,6 +1469,65 @@
       document.getElementById('tab-'+t).classList.toggle('active', t === tab);
     });
     window.scrollTo(0, 0);
+  }
+
+  // ── PORTFOLIO GOAL ──
+  let selectedGoal = 'long_term';
+  const goalLabels = {
+    long_term: 'Long-Term Growth (10+ years)',
+    dividend: 'Dividend & Income',
+    aggressive: 'Aggressive Growth (1–3 years)',
+    short_term: 'Short-Term Trading (weeks to months)'
+  };
+  const goalPrompts = {
+    long_term: `The investor's goal is LONG-TERM GROWTH (10+ year horizon). Weight your analysis heavily toward: business quality, competitive moat, earnings compounding, and valuation vs intrinsic value. Treat short-term volatility as irrelevant. Flag positions that are low-quality or speculative. Recommend trimming anything that doesn't belong in a 10-year portfolio.`,
+    dividend: `The investor's goal is DIVIDEND & INCOME. Weight your analysis toward: dividend yield, payout sustainability, dividend growth history, and cash flow stability. Flag positions with poor or no yield. Recommend adding high-quality dividend payers. Treat growth stocks with no yield as mismatches unless they serve a specific purpose.`,
+    aggressive: `The investor's goal is AGGRESSIVE GROWTH over 1–3 years. Weight your analysis toward: revenue growth rate, market share expansion, TAM size, and momentum. Accept higher P/E ratios for high-growth names. Flag slow-growth or defensive positions as mismatches. Recommend the highest-conviction growth opportunities with specific near-term catalysts.`,
+    short_term: `The investor's goal is SHORT-TERM TRADING over weeks to months. Weight your analysis toward: near-term catalysts (earnings, product launches, macro events), technical momentum, short interest, and analyst upgrade potential. Flag positions with no near-term catalyst. Give specific price targets for the next 30–90 days and identify the single most important catalyst to watch for each position.`
+  };
+
+  function selectGoal(el) {
+    document.querySelectorAll('.goal-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    selectedGoal = el.dataset.goal;
+  }
+
+  // ── FETCH LIVE PRICE FROM YAHOO (for portfolio accuracy) ──
+  async function fetchLivePrice(ticker) {
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const meta = data?.chart?.result?.[0]?.meta;
+      if (!meta?.regularMarketPrice) throw new Error();
+      return {
+        currentPrice: meta.regularMarketPrice,
+        previousClose: meta.previousClose || meta.chartPreviousClose,
+        change1d: meta.previousClose ? (meta.regularMarketPrice - meta.previousClose) / meta.previousClose : null,
+        marketCap: meta.marketCap || null,
+        name: meta.longName || meta.shortName || ticker,
+      };
+    } catch(e) {
+      // Fallback: allorigins
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+        const res2 = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
+        if (!res2.ok) throw new Error();
+        const w = await res2.json();
+        const data = JSON.parse(w.contents);
+        const meta = data?.chart?.result?.[0]?.meta;
+        if (!meta?.regularMarketPrice) throw new Error();
+        return {
+          currentPrice: meta.regularMarketPrice,
+          previousClose: meta.previousClose || meta.chartPreviousClose,
+          change1d: meta.previousClose ? (meta.regularMarketPrice - meta.previousClose) / meta.previousClose : null,
+          marketCap: meta.marketCap || null,
+          name: meta.longName || meta.shortName || ticker,
+        };
+      } catch(e2) { return null; }
+    }
   }
 
   // ── WATCHLIST ──
@@ -2027,6 +2157,9 @@ Return 6–8 real, well-known stocks that genuinely match the criteria. Order by
 
     const prompt = `You are a senior portfolio manager. Analyze this investment portfolio and return ONLY valid JSON with no markdown.
 
+INVESTOR GOAL: ${goalLabels[selectedGoal]}
+${goalPrompts[selectedGoal]}
+
 PORTFOLIO (Total Value: $${totalValue.toFixed(0)}):
 ${holdingSummaries}
 
@@ -2361,10 +2494,7 @@ Return this exact JSON structure:
 
     try {
       setLoadingStep('Running AI analysis...');
-      const { stockData, analysis } = await fetchAndAnalyze(ticker);
-      setLoadingStep('Building your report...');
-      renderResults(ticker, stockData, analysis);
-
+      await streamAnalysis(ticker);
     } catch (err) {
       document.getElementById('loading').style.display = 'none';
       errEl.textContent = err.message || 'Something went wrong. Please try again.';
@@ -2374,18 +2504,99 @@ Return this exact JSON structure:
     }
   }
 
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+  // ── STREAMING ANALYSIS ──
+  async function streamAnalysis(ticker) {
+    // Step 1: fetch live price from Yahoo in parallel with AI call
+    const livePricePromise = fetchLivePrice(ticker);
+
+    // Step 2: stream the AI analysis
+    const prompt = buildAnalysisPrompt(ticker);
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2800,
+        stream: true,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err?.error?.message || 'API error. Check your API key.');
+    }
+
+    // Stream the response
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullText = '';
+
+    // Show loading with streaming indicator
+    setLoadingStep('Streaming analysis...');
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6);
+        if (data === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+            fullText += parsed.delta.text;
+            // Update loading step with character count for live feel
+            setLoadingStep(`Building report... (${fullText.length} chars)`);
+          }
+        } catch(e) {}
+      }
+    }
+
+    // Parse the complete JSON response
+    const clean = fullText.replace(/```json|```/g, '').trim();
+    let parsed;
+    try {
+      parsed = JSON.parse(clean);
+    } catch(e) {
+      throw new Error('Could not parse analysis. Please try again.');
+    }
+
+    if (!parsed.stockData?.valid) throw new Error(`Ticker "${ticker}" not found.`);
+
+    // Merge live price
+    const liveData = await livePricePromise;
+    if (liveData?.currentPrice) {
+      parsed.stockData.currentPrice = liveData.currentPrice;
+      parsed.stockData.change1d = liveData.change1d;
+      if (liveData.marketCap) parsed.stockData.marketCap = liveData.marketCap;
+    }
+
+    setLoadingStep('Rendering report...');
+    renderResults(ticker, parsed.stockData, parsed.analysis);
+  }
 
   async function fetchStockData(ticker) {
-    const prompt = `For the stock ticker "${ticker}", return ONLY this JSON with no markdown:
+    // Use live Yahoo Finance price for accuracy, supplement with AI for fundamentals
+    const liveData = await fetchLivePrice(ticker);
+
+    // Also get fundamentals from AI (sector, beta, margins etc - not price sensitive)
+    const prompt = `For the stock ticker "${ticker}", return ONLY this JSON with no markdown. Use accurate fundamental data:
 {
   "valid": true,
   "name": "Full Company Name",
   "sector": "Sector",
   "industry": "Industry",
-  "currentPrice": 150.00,
-  "change1d": 0.012,
-  "marketCap": 2400000000000,
   "peRatio": 28.5,
   "forwardPE": 24.0,
   "beta": 1.2,
@@ -2396,9 +2607,10 @@ Return this exact JSON structure:
   "returnOnEquity": 0.45,
   "debtToEquity": 150.0,
   "freeCashflow": 90000000000,
-  "targetMeanPrice": 210.00
+  "targetMeanPrice": 210.00,
+  "dividendYield": 0.005
 }
-If the ticker is invalid, set valid to false.`;
+If ticker is invalid, set valid to false.`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -2418,13 +2630,21 @@ If the ticker is invalid, set valid to false.`;
     if (!response.ok) throw new Error('Could not fetch data for ' + ticker);
     const result = await response.json();
     const text = result.content[0].text.replace(/```json|```/g, '').trim();
-    const data = JSON.parse(text);
-    if (!data.valid) throw new Error('Ticker not found: ' + ticker);
-    return data;
+    const aiData = JSON.parse(text);
+    if (!aiData.valid) throw new Error('Ticker not found: ' + ticker);
+
+    // Merge: live Yahoo price overrides AI price
+    return {
+      ...aiData,
+      currentPrice: liveData?.currentPrice || aiData.currentPrice,
+      change1d: liveData?.change1d || null,
+      marketCap: liveData?.marketCap || null,
+      name: aiData.name || liveData?.name || ticker,
+    };
   }
 
-  async function fetchAndAnalyze(ticker) {
-    const prompt = `You are both a financial data API and a senior equity research analyst at a top-tier hedge fund. For the stock ticker "${ticker}", return financial data AND a full institutional-grade research report.
+  function buildAnalysisPrompt(ticker) {
+    return `You are both a financial data API and a senior equity research analyst at a top-tier hedge fund. For the stock ticker "${ticker}", return financial data AND a full institutional-grade research report.
 
 If the ticker is invalid or unknown, set stockData.valid to false.
 
@@ -2514,7 +2734,11 @@ Return ONLY this exact JSON, no markdown, no explanation:
     }
   }
 }`;
+  }
 
+  // fetchAndAnalyze: used by compare mode (non-streaming)
+  async function fetchAndAnalyze(ticker) {
+    const prompt = buildAnalysisPrompt(ticker);
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -2525,7 +2749,7 @@ Return ONLY this exact JSON, no markdown, no explanation:
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 2500,
+        max_tokens: 2800,
         messages: [{ role: 'user', content: prompt }]
       })
     });
@@ -2538,8 +2762,16 @@ Return ONLY this exact JSON, no markdown, no explanation:
     const result = await response.json();
     const text = result.content[0].text.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(text);
+    if (!parsed.stockData?.valid) throw new Error(`Ticker "${ticker}" not found.`);
 
-    if (!parsed.stockData?.valid) throw new Error(`Ticker "${ticker}" not found. Please check and try again.`);
+    // Merge live price
+    const liveData = await fetchLivePrice(ticker);
+    if (liveData?.currentPrice) {
+      parsed.stockData.currentPrice = liveData.currentPrice;
+      parsed.stockData.change1d = liveData.change1d;
+      if (liveData.marketCap) parsed.stockData.marketCap = liveData.marketCap;
+    }
+
     return { stockData: parsed.stockData, analysis: parsed.analysis };
   }
 
