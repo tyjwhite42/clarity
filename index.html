@@ -801,7 +801,75 @@
     line-height: 1.5;
   }
 
-  /* ── STREAMING TEXT ── */
+  /* ── TIMING SCORE ── */
+  .timing-block {
+    text-align: center;
+    padding-left: 32px;
+    border-left: 1px solid var(--border);
+    margin-left: 8px;
+  }
+  .timing-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .timing-score {
+    font-family: 'Playfair Display', serif;
+    font-size: 4rem;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--accent2);
+  }
+  .timing-score.timing-hot   { color: var(--accent); }
+  .timing-score.timing-warm  { color: var(--gold); }
+  .timing-score.timing-cold  { color: #8888aa; }
+  .timing-verdict {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ── EXPLAIN MODE TOGGLE ── */
+  .explain-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+  .explain-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-right: 4px;
+  }
+  .explain-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    padding: 5px 14px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.06em;
+  }
+  .explain-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .explain-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0a0a0f;
+  }
   .streaming-cursor::after {
     content: '▋';
     animation: blink 0.7s step-end infinite;
@@ -1201,11 +1269,27 @@
       <h2 id="res-name"></h2>
       <div class="sector-tag" id="res-sector"></div>
     </div>
-    <div class="conviction-block">
-      <div class="conviction-label">AI Conviction Score</div>
-      <div class="conviction-score" id="res-conviction"></div>
-      <div class="conviction-verdict" id="res-verdict"></div>
+    <div style="display:flex;align-items:flex-start;gap:0;">
+      <div class="conviction-block">
+        <div class="conviction-label">AI Conviction Score</div>
+        <div class="conviction-score tooltip-wrap" id="res-conviction"></div>
+        <div class="conviction-verdict" id="res-verdict"></div>
+      </div>
+      <div class="timing-block tooltip-wrap" id="timing-block">
+        <div class="timing-label">Entry Timing</div>
+        <div class="timing-score" id="res-timing">—</div>
+        <div class="timing-verdict" id="res-timing-verdict">—</div>
+        <!-- tooltip injected by JS -->
+      </div>
     </div>
+  </div>
+
+  <!-- Explain Mode Bar -->
+  <div class="explain-bar" id="explain-bar" style="display:none;">
+    <span class="explain-label">Explain this to me:</span>
+    <button class="explain-btn" onclick="setExplainMode('beginner')" id="explain-beginner">Beginner</button>
+    <button class="explain-btn active" onclick="setExplainMode('intermediate')" id="explain-intermediate">Intermediate</button>
+    <button class="explain-btn" onclick="setExplainMode('expert')" id="explain-expert">Expert</button>
   </div>
 
   <!-- Metrics bar -->
@@ -1681,7 +1765,71 @@
     document.getElementById('trending-chips').innerHTML = html;
   }
 
-  // ── ANIMATED CONVICTION SCORE ──
+  // ── EXPLAIN MODE ──
+  let currentExplainMode = 'intermediate';
+  let currentAnalysis = null;
+
+  function setExplainMode(mode) {
+    currentExplainMode = mode;
+    ['beginner','intermediate','expert'].forEach(m => {
+      document.getElementById('explain-' + m).classList.toggle('active', m === mode);
+    });
+    if (!currentAnalysis) return;
+    const peQuote = document.getElementById('plain-english-quote');
+    if (!peQuote) return;
+    if (mode === 'beginner') {
+      peQuote.textContent = currentAnalysis.explain?.beginner || currentAnalysis.plain_english;
+    } else if (mode === 'expert') {
+      peQuote.textContent = currentAnalysis.explain?.expert || currentAnalysis.analyst_summary;
+    } else {
+      peQuote.textContent = currentAnalysis.plain_english;
+    }
+  }
+
+  // ── TIMING SCORE RENDER ──
+  function renderTimingScore(timing) {
+    if (!timing?.score) return;
+    const el = document.getElementById('res-timing');
+    const verdictEl = document.getElementById('res-timing-verdict');
+    const block = document.getElementById('timing-block');
+
+    // Color class based on score
+    el.className = 'timing-score';
+    if (timing.score >= 8) el.classList.add('timing-hot');
+    else if (timing.score >= 6) el.classList.add('timing-warm');
+    else el.classList.add('timing-cold');
+
+    // Animate count-up
+    let current = 0;
+    const target = timing.score;
+    const timer = setInterval(() => {
+      current = Math.min(current + target / 30, target);
+      el.innerHTML = Math.round(current) + '/10';
+      if (current >= target) clearInterval(timer);
+    }, 800 / 30);
+
+    verdictEl.textContent = timing.verdict || '';
+
+    // Inject tooltip
+    block.innerHTML = `
+      <div class="timing-label">Entry Timing</div>
+      <div class="timing-score ${timing.score >= 8 ? 'timing-hot' : timing.score >= 6 ? 'timing-warm' : 'timing-cold'}" id="res-timing">0/10</div>
+      <div class="timing-verdict">${timing.verdict || ''}</div>
+      ${makeTooltip('Timing Score')}
+    `;
+
+    // Re-animate after innerHTML reset
+    const newEl = document.getElementById('res-timing');
+    let c2 = 0;
+    const t2 = setInterval(() => {
+      c2 = Math.min(c2 + target / 30, target);
+      newEl.textContent = Math.round(c2) + '/10';
+      if (c2 >= target) {
+        newEl.textContent = target + '/10';
+        clearInterval(t2);
+      }
+    }, 800 / 30);
+  }
   function animateConviction(targetScore, element) {
     const tooltipHTML = element.querySelector('.tooltip-box') ? element.innerHTML.replace(/^\d+\/10/, '') : '';
     let current = 0;
@@ -2791,6 +2939,18 @@ Return ONLY this exact JSON, no markdown, no explanation:
       "rate_sensitivity": "HIGH",
       "rate_impact": "NEGATIVE",
       "rate_note": "Short note on rate sensitivity"
+    },
+    "timing_score": {
+      "score": <integer 1-10, is NOW a good entry point regardless of long-term quality?>,
+      "verdict": <"OPPORTUNISTIC" | "FAIR ENTRY" | "NEUTRAL" | "EXTENDED" | "AVOID ENTRY">,
+      "valuation_timing": <1-10, is stock cheap/expensive vs its own historical averages?>,
+      "momentum_timing": <1-10, is price momentum favorable for entry? near 52w low = good, near 52w high after big run = bad>,
+      "macro_timing": <1-10, is the current macro/sector environment favorable for entry right now?>,
+      "summary": <one sentence: why is now or is not a good entry point specifically>
+    },
+    "explain": {
+      "beginner": <the plain_english summary rewritten for someone who has never invested. No jargon. Use simple analogies. Max 3 sentences.>,
+      "expert": <the analyst_summary rewritten in full institutional language, dense, no hand-holding, assume CFA-level knowledge. Include specific multiples and metrics.>
     }
   }
 }`;
@@ -2922,6 +3082,11 @@ Return ONLY this exact JSON, no markdown, no explanation:
       body: 'Shows how the price target changes if our key assumptions turn out to be wrong. Elite analysts always stress-test their models.',
       context: 'If the stock holds value even in bad scenarios, that\'s a margin of safety. If small changes destroy value, the thesis is fragile.'
     },
+    'Timing Score': {
+      title: 'Entry Timing Score',
+      body: 'Separate from conviction — is RIGHT NOW a good time to buy? Combines valuation vs historical averages, price momentum, and sector macro timing.',
+      context: '8–10 = Opportunistic entry. 6–7 = Fair entry. 4–5 = Neutral. Below 4 = Stock may be extended or facing near-term headwinds.'
+    },
     'Conviction': {
       title: 'AI Conviction Score',
       body: 'A weighted score from 1–10 combining valuation, quality, growth, risk, and macro factors. Built on the same framework used by institutional investors.',
@@ -3007,6 +3172,13 @@ Return ONLY this exact JSON, no markdown, no explanation:
     const dcf = ai.dcf;
     const sens = ai.sensitivity;
 
+    // Store for explain mode
+    currentAnalysis = ai;
+    currentExplainMode = 'intermediate';
+    ['beginner','intermediate','expert'].forEach(m => {
+      document.getElementById('explain-' + m)?.classList.toggle('active', m === 'intermediate');
+    });
+
     // Header
     document.getElementById('res-ticker').textContent = ticker;
     document.getElementById('res-name').textContent = data.name;
@@ -3020,6 +3192,14 @@ Return ONLY this exact JSON, no markdown, no explanation:
     convEl.innerHTML = '0/10' + makeTooltip('Conviction');
     document.getElementById('res-verdict').textContent = cm.verdict;
     setTimeout(() => animateConviction(cm.conviction_score, convEl), 300);
+
+    // Timing score
+    if (ai.timing_score) {
+      setTimeout(() => renderTimingScore(ai.timing_score), 400);
+    }
+
+    // Show explain bar
+    document.getElementById('explain-bar').style.display = 'flex';
 
     // Metrics bar
     const metrics = [
@@ -3245,7 +3425,7 @@ Return ONLY this exact JSON, no markdown, no explanation:
     peCard.className = 'plain-english';
     peCard.innerHTML = `
       <div class="card-label">Plain English — For Every Investor</div>
-      <div class="pe-quote">${ai.plain_english}</div>
+      <div class="pe-quote" id="plain-english-quote">${ai.plain_english}</div>
     `;
     grid.appendChild(peCard);
 
