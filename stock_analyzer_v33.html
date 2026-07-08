@@ -1585,7 +1585,7 @@
   async function fetchLivePrice(ticker) {
     try {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
-      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
+      const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
       const res = await fetch(proxyUrl);
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -1716,7 +1716,7 @@
     try {
       const results = await Promise.allSettled(
         indices.map(idx =>
-          fetch('https://corsproxy.io/?' + encodeURIComponent(
+          fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(
             `https://query1.finance.yahoo.com/v8/finance/chart/${idx.ticker}?interval=1d&range=2d`
           )).then(r => r.json()).then(d => {
             const meta = d?.chart?.result?.[0]?.meta;
@@ -1865,7 +1865,7 @@
     try {
       const results = await Promise.allSettled(
         TAPE_TICKERS.map(t =>
-          fetch('https://corsproxy.io/?' + encodeURIComponent(
+          fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(
             `https://query1.finance.yahoo.com/v8/finance/chart/${t}?interval=1d&range=2d`
           )).then(r => r.json()).then(d => {
             const q = d?.chart?.result?.[0];
