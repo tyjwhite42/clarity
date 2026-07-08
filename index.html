@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2165,7 +2164,7 @@ Return 6–8 real, well-known stocks that genuinely match the criteria. Order by
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 1200,
           messages: [{ role: 'user', content: prompt }]
         })
@@ -2364,7 +2363,7 @@ Give 3-4 recommendations. They must NOT be tickers already in the portfolio. Eac
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 2000,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -2729,7 +2728,7 @@ Give 3-4 recommendations. They must NOT be tickers already in the portfolio. Eac
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 2800,
         stream: true,
         messages: [{ role: 'user', content: prompt }]
@@ -2829,7 +2828,7 @@ If ticker is invalid, set valid to false.`;
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 600,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -2968,7 +2967,7 @@ Return ONLY this exact JSON, no markdown, no explanation:
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 2800,
         messages: [{ role: 'user', content: prompt }]
       })
