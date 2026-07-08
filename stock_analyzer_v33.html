@@ -2729,7 +2729,7 @@ Give 3-4 recommendations. They must NOT be tickers already in the portfolio. Eac
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2800,
+        max_tokens: 4000,
         stream: true,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -2771,11 +2771,22 @@ Give 3-4 recommendations. They must NOT be tickers already in the portfolio. Eac
     }
 
     // Parse the complete JSON response
-    const clean = fullText.replace(/```json|```/g, '').trim();
+    let clean = fullText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    
+    // Find JSON object boundaries more robustly
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      clean = clean.substring(firstBrace, lastBrace + 1);
+    }
+
     let parsed;
     try {
       parsed = JSON.parse(clean);
     } catch(e) {
+      console.error('Parse error:', e);
+      console.error('Raw response length:', fullText.length);
+      console.error('Clean text preview:', clean.substring(0, 500));
       throw new Error('Could not parse analysis. Please try again.');
     }
 
